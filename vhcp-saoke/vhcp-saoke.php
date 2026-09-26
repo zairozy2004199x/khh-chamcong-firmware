@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.57.0
+ * Version:           0.58.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -25,7 +25,7 @@ class SAOKE_App {
 	   thêm file"* — câu đầu tiên phải trả lời là "bản đang chạy có khối ấy chưa", mà trang thì
 	   không in số bản ở đâu cả, nên không ai đáp được ngoài cách đi mở wp-admin. Ghi ở đây, hiện
 	   ở góc cột trái. ⚠️ PHẢI BẰNG số ở header `Version:` phía trên — hai chỗ, một giá trị. */
-	const VER = '0.57.0';
+	const VER = '0.58.0';
 
 	/* 🔴 BỘ NHỚ ĐỆM TRONG MỘT LƯỢT cho bản đồ cửa hàng VietQR (option `saoke_vqr_ch`) — anh Thắng
 	   25/09/2026: Báo cáo tổng bên Ghế "không nối được tới máy chủ" khi chọn 01→25/09, còn 12→25 thì
@@ -2129,7 +2129,12 @@ class SAOKE_App {
 	 * lặng lẽ bỏ sót nó: không có dòng thì không ai thấy thiếu.
 	 *
 	 * Bên Chi Phí, KVC là một ĐƠN VỊ (cạnh POSH, dưới nhà mẹ K&H — xem `VHCP_DonVi`). Cơ sở của
-	 * nó nằm trong danh mục `CH_CoSo` với cột Đơn vị = KVC.
+	 * nó nằm trong danh mục `CH_CoSo`.
+	 *
+	 * 🔴 26/09/2026: cột đánh dấu KVC đã ĐỔI. Từ 24/09/2026 cột "Đơn vị"/"Khối" (`donVi`) bên Chi
+	 *    Phí mang nghĩa MIỀN (MB/MN); trục KVC·MTĐ·VP của một cơ sở nay là cột riêng "Bộ phận"
+	 *    (`boPhan`, đã chuẩn hoá qua `VHCP_DonVi::khoi_cua()`). `chiphi_ds_coso()` so CẢ HAI cột —
+	 *    khai ở cột nào (cũ hay mới) cũng nhận ra, không bắt khai lại.
 	 *
 	 * 🔴 GỌI QUA LỚP CỦA PLUGIN KIA, KHÔNG ĐỌC THẲNG BẢNG. Chính `VHCP_Cfg::hut_coso_ghe()` đã
 	 *    ghi luật ấy cho chiều ngược lại. Đọc thẳng bảng của người ta là ngày họ đổi cột thì bên
@@ -2162,7 +2167,16 @@ class SAOKE_App {
 		if ( ! self::chiphi_co() ) { return array(); }
 		static $ds = null; if ( null !== $ds ) { return $ds; }
 		$dv = self::dv_chi_phi(); $ds = array(); $thay = array();
-		$cfg = VHCP_Cfg::cfg_static();
+		/* 🔴 26/09/2026: anh Thắng — "nó bị mất cơ sở khu vui chơi nên không dò ra". Bên Chi Phí
+		   24/09/2026 đổi nghĩa cột "Đơn vị"/"Khối" (`donVi`) từ KVC·MTĐ·VP sang MIỀN (MB/MN) —
+		   xem `class-vhcp-cfg.php`, khối "🔴 CỘT TRONG BẢNG ĐÃ LÀ 'KHỐI' TỪ 21/09". Trục KVC·MTĐ·VP
+		   của một cơ sở từ đó nằm ở cột RIÊNG "Bộ phận" (`boPhan`, đã chuẩn hoá 'kvc'/'mtd'/'vp' qua
+		   `VHCP_DonVi::khoi_cua()`). Hàm này viết từ 16/09/2026, trước lượt đổi ấy, nên chỉ còn so
+		   `donVi` — mọi cơ sở khu vui chơi khai đúng quy trình mới (Bộ phận = KVC, Đơn vị để MB/MN
+		   hoặc trống) đều lọt khỏi sổ, và màn "Mã nộp tiền — Khu vui chơi" báo trắng trơn dù cơ sở
+		   có thật. So CẢ HAI cột (không bỏ `donVi`): dữ liệu cũ từ trước 24/09 vẫn khai ở `donVi`. */
+		$khoi = method_exists( 'VHCP_DonVi', 'khoi_cua' ) ? VHCP_DonVi::khoi_cua( $dv ) : '';
+		$cfg  = VHCP_Cfg::cfg_static();
 		foreach ( (array) ( isset( $cfg['coso'] ) ? $cfg['coso'] : array() ) as $c ) {
 			$ten = trim( (string) ( isset( $c['ten'] ) ? $c['ten'] : '' ) );
 			if ( '' === $ten ) { continue; }
@@ -2174,7 +2188,9 @@ class SAOKE_App {
 			$k = self::chuan_ch( $ten );
 			if ( '' === $k || isset( $thay[ $k ] ) ) { continue; }
 			$thay[ $k ] = 1;
-			if ( ! VHCP_DonVi::bang( isset( $c['donVi'] ) ? $c['donVi'] : '', $dv ) ) { continue; }
+			$khop_dv = VHCP_DonVi::bang( isset( $c['donVi'] ) ? $c['donVi'] : '', $dv );
+			$khop_bp = ( '' !== $khoi ) && ( $khoi === (string) ( isset( $c['boPhan'] ) ? $c['boPhan'] : '' ) );
+			if ( ! $khop_dv && ! $khop_bp ) { continue; }
 			/* ⚠️ Cơ sở ĐÃ ĐÓNG CỬA thì bỏ — để lại là mỗi kỳ đối chiếu lại có một dòng "chưa nộp"
 			   vĩnh viễn đỏ, và một dòng đỏ không bao giờ xanh được là dòng người ta thôi nhìn. */
 			if ( '' !== trim( (string) ( isset( $c['dongCua'] ) ? $c['dongCua'] : '' ) ) ) { continue; }

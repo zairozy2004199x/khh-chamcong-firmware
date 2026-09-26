@@ -138,8 +138,25 @@ echo "── Chạy thật ──\n";
    đỡ nói dối về mức phụ thuộc thật. */
 class VHCP_DonVi {
 	const MAC_DINH = 'K&H';
+	const KHOI_THEO_DON_VI = array(
+		'mb'  => array( 'MB', 'MIỀN BẮC', 'MIEN BAC' ),
+		'mn'  => array( 'MN', 'MIỀN NAM', 'MIEN NAM' ),
+		'kvc' => array( 'KVC' ),
+		'mtd' => array( 'MTĐ', 'MTD', 'POSH' ),
+		'vp'  => array( 'VP', 'VĂN PHÒNG', 'VAN PHONG' ),
+	);
 	public static function chuan( $x ) { $x = trim( (string) $x ); return '' === $x ? self::MAC_DINH : $x; }
 	public static function bang( $a, $b ) { return 0 === strcasecmp( self::chuan( $a ), self::chuan( $b ) ); }
+	/* Bản rút gọn của hàm thật (class-vhcp-donvi.php) — CHỈ để bệ đỡ này gọi được, không phải bản
+	   chính thức. So thật thì gọi lớp Chi Phí thật, không phải bản chép ở đây. */
+	public static function khoi_cua( $don_vi ) {
+		$k = mb_strtoupper( trim( (string) $don_vi ) );
+		if ( '' === $k ) { return ''; }
+		foreach ( self::KHOI_THEO_DON_VI as $ma => $ds ) {
+			foreach ( $ds as $x ) { if ( mb_strtoupper( $x ) === $k ) { return $ma; } }
+		}
+		return '';
+	}
 }
 class VHCP_Cfg {
 	public static $coso = array();
@@ -149,14 +166,22 @@ class VHCP_Cfg {
 require_once __DIR__ . '/lib/be-saoke.php';
 require_once dirname( __DIR__, 2 ) . '/vhcp-saoke/vhcp-saoke.php';
 
-/* Bảng cơ sở bên Ghế: bệ đỡ trả rỗng cho SHOW TABLES nên ghe_co() = false -> chỉ còn nguồn KVC.
+/* 🔴 26/09/2026: anh Thắng — "nó bị mất cơ sở khu vui chơi nên không dò ra". Từ 24/09/2026 bên
+   Chi Phí, cột "Đơn vị"/"Khối" (`donVi`) đổi sang mang nghĩa MIỀN (MB/MN); trục KVC·MTĐ·VP của
+   MỘT CƠ SỞ nay là cột riêng "Bộ phận" (`boPhan`). Khối dưới đây mô phỏng đúng thực tế đó: phần
+   lớn cơ sở khai `donVi` = miền (hoặc trống) và `boPhan` = 'kvc' — CHỈ MỘT dòng còn giữ lối khai
+   cũ (`donVi` = 'KVC' trực tiếp, trước lượt đổi 24/09) để bảo đảm đường lui cũ không gãy.
+
+   Bảng cơ sở bên Ghế: bệ đỡ trả rỗng cho SHOW TABLES nên ghe_co() = false -> chỉ còn nguồn KVC.
    Đó chính là ca đáng thử nhất: site có Chi Phí mà KHÔNG cài Ghế. */
 VHCP_Cfg::$coso = array(
-	array( 'ten' => 'KHU VUI CHƠI AEON TÂN PHÚ', 'donVi' => 'KVC', 'tinh' => 'TP HCM', 'dongCua' => '' ),
-	array( 'ten' => 'Khu vui chơi Aeon Tân Phú', 'donVi' => 'kvc', 'tinh' => 'TP HCM', 'dongCua' => '' ),
-	array( 'ten' => 'SÂN BAY CẦN THƠ',           'donVi' => 'POSH', 'tinh' => 'Cần Thơ', 'dongCua' => '' ),
-	array( 'ten' => 'KVC ĐÃ ĐÓNG',               'donVi' => 'KVC', 'tinh' => '', 'dongCua' => '2026-01-01' ),
-	array( 'ten' => '',                          'donVi' => 'KVC', 'tinh' => '', 'dongCua' => '' ),
+	array( 'ten' => 'KHU VUI CHƠI AEON TÂN PHÚ', 'donVi' => 'MN',   'boPhan' => 'kvc', 'tinh' => 'TP HCM', 'dongCua' => '' ),
+	array( 'ten' => 'Khu vui chơi Aeon Tân Phú', 'donVi' => 'MN',   'boPhan' => 'kvc', 'tinh' => 'TP HCM', 'dongCua' => '' ),
+	array( 'ten' => 'GALAXY KINH DƯƠNG VƯƠNG',   'donVi' => '',     'boPhan' => 'kvc', 'tinh' => 'TP HCM', 'dongCua' => '' ),
+	array( 'ten' => 'FARM PHAN THIẾT (KHAI CŨ)', 'donVi' => 'KVC',  'boPhan' => '',    'tinh' => 'Bình Thuận', 'dongCua' => '' ),
+	array( 'ten' => 'SÂN BAY CẦN THƠ',           'donVi' => 'POSH', 'boPhan' => 'mtd', 'tinh' => 'Cần Thơ', 'dongCua' => '' ),
+	array( 'ten' => 'KVC ĐÃ ĐÓNG',               'donVi' => 'MN',   'boPhan' => 'kvc', 'tinh' => '', 'dongCua' => '2026-01-01' ),
+	array( 'ten' => '',                          'donVi' => 'MN',   'boPhan' => 'kvc', 'tinh' => '', 'dongCua' => '' ),
 );
 
 /* Khoá của sổ mã là `chuan_ch(tên)` — gọi CHÍNH hàm của lớp thật, đừng chép lại luật chuẩn hoá
@@ -174,11 +199,15 @@ foreach ( (array) $ds as $c ) { $ten[] = $c['ten']; }
 
 k( '🔴 hai dòng KVC cùng tên khác hoa/thường -> trong CÙNG một sổ vẫn gộp còn MỘT',
 	1 === count( array_filter( $ten, function ( $x ) { return false !== mb_stripos( $x, 'aeon tân phú' ); } ) ) );
-k( '🔴 chỉ lấy đơn vị KVC — không kéo cơ sở POSH sang',
+k( '🔴 26/09: cơ sở khai kiểu MỚI (Đơn vị=miền/trống, Bộ phận=kvc) VẪN nhận ra — đây là ca anh Thắng báo mất',
+	in_array( 'GALAXY KINH DƯƠNG VƯƠNG', $ten, true ) );
+k( '🔴 đường lui: cơ sở còn khai kiểu CŨ (Đơn vị=KVC trực tiếp, từ trước 24/09) vẫn nhận ra',
+	in_array( 'FARM PHAN THIẾT (KHAI CŨ)', $ten, true ) );
+k( '🔴 chỉ lấy khối KVC — không kéo cơ sở MTĐ/POSH sang dù Đơn vị lạ',
 	! in_array( 'SÂN BAY CẦN THƠ', $ten, true ) );
 k( 'bỏ cơ sở đã đóng cửa', ! in_array( 'KVC ĐÃ ĐÓNG', $ten, true ) );
 k( 'bỏ dòng tên rỗng', ! in_array( '', $ten, true ) );
-k( 'còn đúng 1 cơ sở (đang có ' . count( $ten ) . ': ' . implode( ' · ', $ten ) . ')', 1 === count( $ten ) );
+k( 'còn đúng 3 cơ sở (đang có ' . count( $ten ) . ': ' . implode( ' · ', $ten ) . ')', 3 === count( $ten ) );
 k( 'giữ được tỉnh để màn hình hiện kèm',
 	isset( $ds[0]['tinh'] ) && 'TP HCM' === $ds[0]['tinh'] );
 k( 'đánh dấu nguồn là chiphi', isset( $ds[0]['nguon'] ) && 'chiphi' === $ds[0]['nguon'] );
