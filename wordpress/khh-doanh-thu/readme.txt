@@ -102,6 +102,12 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.75.1 =
+* Bớt nút "Hôm qua" cạnh ô ngày (tab Nhập báo cáo ngày) — anh Thắng 26/09/2026: *"lúc được, lúc
+  không. chỉ hiện nút hôm nay thôi, với nút to lên tí"*. Ô ngày vốn đã mặc định hôm qua, đủ dùng;
+  chỉ giữ nút "Hôm nay" cho ca hay cần (đang xem hôm qua mà có việc phải nhập luôn hôm nay), và
+  làm nút to hơn bản 1.75.0 (bản đó lỡ tay thu nhỏ hơn cả cỡ mặc định của nút viền).
+
 = 1.75.0 =
 * Tab Nhập báo cáo ngày: thêm hai nút **"Hôm qua" / "Hôm nay"** cạnh ô chọn ngày — anh Thắng
   26/09/2026: *"nhân viên cứ chọn lộn ngày"*. Ô lịch gõ tay (spinner tháng/ngày/năm tách rời) dễ

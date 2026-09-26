@@ -1,9 +1,12 @@
 /**
- * NÚT "HÔM NAY" / "HÔM QUA" Ở TAB NHẬP BÁO CÁO NGÀY.
+ * NÚT "HÔM NAY" Ở TAB NHẬP BÁO CÁO NGÀY.
  *
  * Anh Thắng 26/09/2026: "Bổ sung chỗ này: ngày hôm nay chứ nhân viên cứ chọn lộn ngày" — ô lịch
- * gõ tay (spinner tháng/ngày/năm riêng từng ô) dễ bấm nhầm. Hai nút chọn thẳng theo NHÃN thay cho
- * mò lịch, và tô đậm đúng nút khớp ngày đang chọn để nhìn một cái biết ngay đang xem ngày nào.
+ * gõ tay (spinner tháng/ngày/năm riêng từng ô) dễ bấm nhầm. Thêm nút chọn thẳng theo nhãn thay
+ * mò lịch. Bản đầu có cả "Hôm qua" lẫn "Hôm nay"; anh Thắng phản hồi ngay sau đó: *"lúc được, lúc
+ * không. chỉ hiện nút hôm nay thôi, với nút to lên tí"* — bớt "Hôm qua" (ô ngày vốn đã mặc định
+ * hôm qua, đủ dùng), chỉ giữ "Hôm nay" cho ca hay cần (đang xem hôm qua mà có việc phải nhập luôn
+ * hôm nay), và làm nút TO hơn bản trước (bản trước lỡ tay thu nhỏ hơn cả cỡ mặc định của .vien).
  *
  * Chạy: node tools/test/kiem-nut-hom-nay.js
  */
@@ -19,22 +22,23 @@ let dat = 0;
 const hong = [];
 function t(ten, dk) { if (dk) { dat++; } else { hong.push(ten); } }
 
-t('có nút "Hôm qua" cạnh ô ngày', /id="bcNgayQua"/.test(boCC));
-t('có nút "Hôm nay" cạnh ô ngày', /id="bcNgayNay"/.test(boCC));
-t('🔴 bấm "Hôm qua" đặt đúng ngày hôm qua và tải lại báo cáo',
-  /bcNgayQua'\)\.addEventListener\('click', function \(\) \{ q\('#bcNgay'\)\.value = homQua\(\); veNutNgay\(\); napBaoCao\(\); \}\)/.test(boCC));
+t('🔴 CHỈ còn nút "Hôm nay" — không còn "Hôm qua" (anh Thắng: "chỉ hiện nút hôm nay thôi")',
+  /id="bcNgayNay"/.test(boCC) && !/id="bcNgayQua"/.test(boCC) && !/homQua\(\); veNutNgay/.test(boCC));
 t('🔴 bấm "Hôm nay" đặt đúng ngày hôm nay và tải lại báo cáo',
   /bcNgayNay'\)\.addEventListener\('click', function \(\) \{ q\('#bcNgay'\)\.value = homNay\(\); veNutNgay\(\); napBaoCao\(\); \}\)/.test(boCC));
-t('🔴 đổi ngày bằng ô lịch cũng cập nhật lại nút tô đậm (không chỉ hai nút mới cập nhật)',
+t('🔴 nút to hơn cỡ trước (font-size 14px, không còn 12px thu nhỏ)',
+  /function veNutNgay\(\) \{[\s\S]*?font-size:14px;padding:7px 16px/.test(boCC));
+t('đổi ngày bằng ô lịch cũng cập nhật lại nút tô đậm (không chỉ bấm nút mới cập nhật)',
   /bcNgay'\)\.addEventListener\('change', function \(\) \{ veNutNgay\(\); napBaoCao\(\); \}\)/.test(boCC));
 t('vẽ nút đúng ngay lúc mở màn (không đợi bấm gì mới thấy tô đậm)',
   /veNutNgay\(\);\s*\n\s*sel\.addEventListener/.test(boCC));
-t('🔴 hàm tô đậm so đúng giá trị ô ngày với homQua()/homNay(), không đoán bừa',
-  /function veNutNgay\(\) \{[\s\S]*?v === homQua\(\)[\s\S]*?v === homNay\(\)[\s\S]*?\n  \}/.test(boCC));
+const veNutNgayThan = (boCC.match(/function veNutNgay\(\) \{[\s\S]*?\n  \}/) || [''])[0];
+t('🔴 hàm tô đậm chỉ so với homNay(), không còn nhắc tới homQua() (bớt gọn theo đúng ý)',
+  /homNay\(\)/.test(veNutNgayThan) && !/homQua\(\)/.test(veNutNgayThan));
 
 if (hong.length) {
   console.log('\n✗ HỎNG ' + hong.length + ' phép (đạt ' + dat + '):');
   hong.forEach((h) => console.log('   · 🔴 ' + h));
   process.exit(1);
 }
-console.log('\n✓ SẠCH — ' + dat + ' phép: nút "Hôm nay"/"Hôm qua" chọn ngày theo nhãn, tô đậm đúng ngày đang xem.');
+console.log('\n✓ SẠCH — ' + dat + ' phép: chỉ còn nút "Hôm nay", to hơn, tô đậm đúng lúc đang xem hôm nay.');

@@ -1065,16 +1065,17 @@
      `toISOString()`, hàm ấy đổi sang UTC nên buổi tối ở Việt Nam sẽ ra ngày hôm trước. */
   function homNay() { return ymd(new Date()); }
 
-  /* Tô đậm đúng nút khớp với ngày đang chọn — để nhìn một cái biết ngay mình đang xem
-     "hôm qua" hay "hôm nay", không phải tự cộng trừ trong đầu rồi đoán. Đặt thẳng style
-     (không thêm class) vì .vien/.nut.chinh cùng đặt background/border, cộng cả hai lớp
-     lại là ai đứng sau trong CSS thắng, không chắc ra đúng màu muốn. */
+  /* 🔴 Anh Thắng 26/09/2026: "lúc được, lúc không. chỉ hiện nút hôm nay thôi, với nút to lên
+     tí" — bớt nút "Hôm qua" (mặc định của ô ngày vốn đã là hôm qua, đủ dùng), chỉ giữ "Hôm
+     nay" cho ca hay cần: nhân viên đang xem báo cáo hôm qua mà có việc phải nhập luôn hôm nay.
+     Tô đậm khi đang xem đúng hôm nay — đặt thẳng style (không thêm class) vì .vien/.nut.chinh
+     cùng đặt background/border, cộng cả hai lớp lại là ai đứng sau trong CSS thắng, không
+     chắc ra đúng màu muốn. */
   function veNutNgay() {
-    var v = q('#bcNgay').value, nq = q('#bcNgayQua'), nn = q('#bcNgayNay');
-    if (!nq || !nn) return;
-    var dam = 'border-color:var(--app);color:var(--app);font-weight:600';
-    nq.style.cssText = 'margin-left:6px;font-size:12px;padding:3px 8px' + (v === homQua() ? ';' + dam : '');
-    nn.style.cssText = 'font-size:12px;padding:3px 8px' + (v === homNay() ? ';' + dam : '');
+    var nn = q('#bcNgayNay');
+    if (!nn) return;
+    var dam = 'border-color:var(--app);color:var(--app);font-weight:700';
+    nn.style.cssText = 'font-size:14px;padding:7px 16px' + (q('#bcNgay').value === homNay() ? ';' + dam : '');
   }
 
   function dungNhap() {
@@ -1094,7 +1095,6 @@
             /* 🔴 Anh Thắng 26/09/2026: "nhân viên cứ chọn lộn ngày" — ô lịch gõ tay dễ bấm nhầm
                (tăng/giảm lộn tháng/ngày/năm). Hai nút chọn thẳng theo NHÃN, không phải mò lịch,
                để bấm sai thì phải cố ý chứ không lỡ tay được nữa. */
-            '<button class="vien" type="button" id="bcNgayQua">Hôm qua</button>' +
             '<button class="vien" type="button" id="bcNgayNay">Hôm nay</button>' +
           '</span>' +
           '<span class="o" id="bcOCH"><label for="bcCH">Cơ sở</label><select id="bcCH">' +
@@ -1142,7 +1142,6 @@
     var sel = q('#bcCH');
     if (S.nhapCH) sel.value = S.nhapCH;
     q('#bcNgay').addEventListener('change', function () { veNutNgay(); napBaoCao(); });
-    q('#bcNgayQua').addEventListener('click', function () { q('#bcNgay').value = homQua(); veNutNgay(); napBaoCao(); });
     q('#bcNgayNay').addEventListener('click', function () { q('#bcNgay').value = homNay(); veNutNgay(); napBaoCao(); });
     veNutNgay();
     sel.addEventListener('change', napBaoCao);
