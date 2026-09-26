@@ -48,7 +48,7 @@ class VHCC_PhieuLuong {
 
 	/* ====================================================================== sổ công bố */
 
-	private static function khoa_cs( $coso ) {
+	public static function khoa_cs( $coso ) {
 		return VHCC_Luong::bo_chu( preg_replace( '/^CS_/i', '', trim( (string) $coso ) ) );
 	}
 
@@ -173,6 +173,17 @@ class VHCC_PhieuLuong {
 					. 'Kế toán còn đang nhập; công bố xong thì phiếu hiện ra ở đây.' );
 		}
 
+		return self::dung_phieu( $ma, $cs, $tt );
+	}
+
+
+	/**
+	 * Dựng phiếu của MỘT mã — phần sau ba cửa gác của `phieu()`. Tách ra để trang in (link có
+	 * chữ ký, xem `link_in()`) dùng CHÍNH phép tính này, không có bản thứ hai.
+	 *
+	 * ⚠️ Không tự gác gì: ai gọi phải gác trước (phiên + cơ sở + đã công bố, hoặc chữ ký).
+	 */
+	private static function dung_phieu( $ma, $cs, $tt ) {
 		$b = VHCC_BangLuong::dung( $cs, $tt );
 		if ( empty( $b['ok'] ) ) { return $b; }
 
@@ -234,6 +245,12 @@ class VHCC_PhieuLuong {
 			   chiều ngược: người đọc tưởng còn một khoản trừ chưa tính, trong khi đã trừ rồi.
 			   Người KHÔNG có trong sổ BHXH thì `bhxh` = 0 và phiếu không hiện dòng ấy. */
 			'ngoaiHe'    => array( 'Lương giờ thêm' ),
+			/* Khoản giữ lại (xem `VHCC_GiuLuong`) — gắn ở dòng chính. */
+			'giu'        => isset( $dong[0]['giu'] ) ? $dong[0]['giu'] : array(),
+			'traGiu'     => isset( $dong[0]['traGiu'] ) ? $dong[0]['traGiu'] : array(),
+			'tichLuy'    => isset( $dong[0]['tichLuy'] ) ? $dong[0]['tichLuy'] : array(),
+			/* Trang in A4 của CHÍNH phiếu này — "In / Lưu thành PDF". */
+			'linkIn'     => self::link_in( $ma, $cs, $tt ),
 		);
 	}
 
@@ -332,6 +349,148 @@ class VHCC_PhieuLuong {
 			/* Người quản lý cần biết NHÂN VIÊN BÊN DƯỚI đang thấy gì — xem chốt 2 ở trên. */
 			'daCongBo' => self::da_cong_bo( $cs, $tt ),
 		);
+	}
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * PHIẾU IN A4 (LƯU THÀNH PDF) + GỬI KHI CÔNG BỐ — 26/09/2026
+	 * ══════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng: *"đến ngày công bố lương, mỗi người sẽ được 1 bản gửi tự động … dạng pdf"*, chốt
+	 * gửi CẢ HAI KÊNH: thông báo trong app (chuông + đẩy) và email.
+	 *
+	 * 🔴 LINK CÓ CHỮ KÝ, MỖI LINK ĐÚNG MỘT PHIẾU. Người mở link từ email không có phiên đăng nhập
+	 *    trên trình duyệt ấy. Nên link mang chữ ký HMAC của (mã, cơ sở, tháng) — sửa một chữ trong
+	 *    link là chữ ký sai, không đọc được phiếu người khác. Và nó chỉ mở được KHI THÁNG ẤY CÒN
+	 *    ĐANG CÔNG BỐ: kế toán bấm "Thu lại" là mọi link của tháng ấy thôi mở.
+	 * 🔴 TRANG IN, KHÔNG TẠO TỆP PDF TRÊN MÁY CHỦ — cùng lý do với `VHCC_Pdf`: hosting chia sẻ
+	 *    không có bộ chuyển HTML→PDF; bấm "In / Lưu thành PDF" là ra đúng tệp PDF, khổ A4.
+	 * ⚠️ Lượt GỬI (đọc email, ghi nhật ký gửi) nằm ở `VHCC_GuiPhieu` — lớp này chỉ ĐỌC.
+	 * ⚠️ Email CHỈ mang link, không mang con số lương — thư đi qua nhiều máy chủ, nằm lại trong
+	 *    hộp thư lâu dài; con số ở sau link, link thì thu lại được.
+	 */
+
+	private static function ky_in( $ma, $cs, $tt ) {
+		return substr( hash_hmac( 'sha256', strtolower( trim( (string) $ma ) ) . '|' . self::khoa_cs( $cs ) . '|' . $tt,
+			wp_salt( 'auth' ) . '|vhcc-phieu' ), 0, 32 );
+	}
+
+	/** Link trang in phiếu của MỘT người, một cơ sở, một tháng. */
+	public static function link_in( $ma, $cs, $tt ) {
+		return add_query_arg( array( 'vhcc_phieu' => '1', 'm' => strtolower( trim( (string) $ma ) ),
+			'cs' => (string) $cs, 'th' => (string) $tt, 'k' => self::ky_in( $ma, $cs, $tt ) ), home_url( '/' ) );
+	}
+
+	public static function init() {
+		add_action( 'template_redirect', array( __CLASS__, 'maybe_render_in' ), 1 );
+	}
+
+	/** Cửa vào. `exit` ở đây, không ở `trang_in()` — bộ thử gọi được `trang_in()`. */
+	public static function maybe_render_in() {
+		if ( empty( $_GET['vhcc_phieu'] ) ) { return; }
+		nocache_headers();
+		status_header( 200 );
+		header( 'Content-Type: text/html; charset=utf-8' );
+		header( 'X-Robots-Tag: noindex, nofollow' );
+		echo self::trang_in(
+			isset( $_GET['m'] ) ? sanitize_text_field( wp_unslash( $_GET['m'] ) ) : '',
+			isset( $_GET['cs'] ) ? sanitize_text_field( wp_unslash( $_GET['cs'] ) ) : '',
+			isset( $_GET['th'] ) ? sanitize_text_field( wp_unslash( $_GET['th'] ) ) : '',
+			isset( $_GET['k'] ) ? sanitize_text_field( wp_unslash( $_GET['k'] ) ) : '' );
+		exit;
+	}
+
+	/** HTML trang in. Sai chữ ký / chưa công bố thì trả một trang báo lỗi, không lộ gì. */
+	public static function trang_in( $ma, $cs, $th, $k ) {
+		$tt = VHCC_Luong::tien_to_thang( $th );
+		$dau = '<!doctype html><html lang="vi"><head><meta charset="utf-8">'
+			. '<meta name="viewport" content="width=device-width,initial-scale=1">'
+			. '<meta name="robots" content="noindex,nofollow"><title>Phiếu lương</title><style>'
+			. '@page{size:A4 portrait;margin:12mm}'
+			. 'body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0;padding:16px;font-size:13px;background:#fff}'
+			. '.to{max-width:760px;margin:0 auto}.cty{font-weight:700;font-size:14px}'
+			. 'h1{font-size:20px;text-align:center;margin:10px 0 2px}.phu{text-align:center;color:#555;margin:0 0 14px}'
+			. 'table{width:100%;border-collapse:collapse;margin:8px 0}th,td{border:1px solid #bbb;padding:6px 8px;text-align:left}'
+			. 'th{background:#f1f1f1}td.p,th.p{text-align:right;white-space:nowrap}'
+			. '.tong td{font-weight:700;font-size:15px;background:#fafafa}.mo{color:#666;font-size:12px}'
+			. '.thanh{text-align:center;margin:0 0 12px}.thanh button{font-size:15px;padding:8px 16px}'
+			. '.ky{display:flex;justify-content:space-between;margin-top:28px;text-align:center}'
+			. '@media print{.thanh{display:none}body{padding:0}}'
+			. '</style></head><body><div class="to">';
+		$cuoi = '</div></body></html>';
+		$loi = function ( $c ) use ( $dau, $cuoi ) {
+			return $dau . '<h1>Phiếu lương</h1><p class="phu">' . esc_html( $c ) . '</p>' . $cuoi;
+		};
+		if ( '' === $tt || '' === trim( (string) $ma ) || '' === trim( (string) $cs )
+			|| ! hash_equals( self::ky_in( $ma, $cs, $tt ), (string) $k ) ) {
+			return $loi( 'Link không hợp lệ.' );
+		}
+		if ( ! self::da_cong_bo( $cs, $tt ) ) {
+			return $loi( 'Phiếu lương tháng ' . $tt . ' chưa công bố hoặc đã được thu lại.' );
+		}
+		$p = self::dung_phieu( $ma, $cs, $tt );
+		if ( empty( $p['ok'] ) || ! empty( $p['trong'] ) ) {
+			return $loi( ! empty( $p['loi'] ) ? $p['loi'] : 'Không có phiếu lương.' );
+		}
+		$tien = function ( $v ) { return null === $v ? '—' : esc_html( number_format( (float) $v, 0, ',', '.' ) ) . 'đ'; };
+		$d0 = $p['dong'][0];
+		$h  = $dau;
+		$h .= '<div class="thanh"><button onclick="window.print()">In / Lưu thành PDF</button></div>';
+		$h .= '<div class="cty">' . esc_html( VHCC_Pdf::ten_cong_ty() ) . '</div>';
+		$h .= '<h1>PHIẾU LƯƠNG THÁNG ' . esc_html( (int) substr( $tt, 5, 2 ) . '/' . substr( $tt, 0, 4 ) ) . '</h1>';
+		$h .= '<p class="phu">' . esc_html( VHCC_NhanSu::ten_coso( $p['coSo'] ) ) . '</p>';
+		$h .= '<table><tr><th>Họ tên</th><td>' . esc_html( $p['hoTen'] ) . '</td><th>Mã NV</th><td>'
+			. esc_html( strtoupper( (string) $d0['ma'] ) ) . '</td></tr>'
+			. '<tr><th>Chức vụ</th><td>' . esc_html( (string) $d0['cv'] ) . '</td><th>Ngày có chấm</th><td>'
+			. (int) $p['soNgay'] . '</td></tr></table>';
+
+		$h .= '<table><thead><tr><th>Khoản</th><th>Cách tính</th><th class="p">Thành tiền</th></tr></thead><tbody>';
+		foreach ( $p['dong'] as $d ) {
+			if ( 'thang' === $d['cheDo'] ) {
+				$ct = ( null === $d['luongCb'] ? 'chưa khai lương cơ bản' : $tien( $d['luongCb'] ) . '/tháng' )
+					. ' × ' . esc_html( (string) $d['congThuc'] ) . ' công / ' . esc_html( null === $d['congYc'] ? '—' : (string) $d['congYc'] ) . ' công chuẩn';
+			} elseif ( 'cong' === $d['cheDo'] ) {
+				$ct = esc_html( (string) $d['congThuc'] ) . ' công đêm × ' . ( null === $d['gia'] ? 'chưa khai giá' : $tien( $d['gia'] ) );
+			} else {
+				$ct = esc_html( (string) $d['gio'] ) . ' giờ × ' . ( null === $d['gia'] ? 'chưa khai đơn giá' : $tien( $d['gia'] ) . '/giờ' );
+			}
+			$h .= '<tr><td>' . esc_html( ! empty( $d['laChinh'] ) ? 'Lương chính — ' . $d['cv'] : $d['cv'] ) . '</td><td>' . $ct
+				. '</td><td class="p">' . $tien( $d['luongChinh'] ) . '</td></tr>';
+		}
+		foreach ( array( 'cong' => VHCC_ChotLuong::CONG, 'tru' => VHCC_ChotLuong::TRU ) as $nh => $ds ) {
+			foreach ( $ds as $kh => $ten ) {
+				if ( empty( $d0[ $nh ][ $kh ] ) ) { continue; }
+				$h .= '<tr><td>' . ( 'tru' === $nh ? 'Trừ — ' : 'Cộng — ' ) . esc_html( $ten ) . '</td><td>'
+					. ( 'cong' === $nh && ! empty( $d0['traGiu'][ $kh ] ) ? 'gồm ' . $tien( $d0['traGiu'][ $kh ] ) . ' trả khoản đã giữ' : '' )
+					. '</td><td class="p">' . ( 'tru' === $nh ? '−' : '' ) . $tien( $d0[ $nh ][ $kh ] ) . '</td></tr>';
+			}
+		}
+		if ( $p['bhxh'] > 0 ) {
+			$h .= '<tr><td>Trừ — BHXH</td><td></td><td class="p">−' . $tien( $p['bhxh'] ) . '</td></tr>';
+		}
+		$h .= '<tr class="tong"><td colspan="2">TỔNG NHẬN (TOTAL SALARY)</td><td class="p">'
+			. ( $p['daDu'] ? $tien( $p['tong'] ) : 'chưa đủ đơn giá' ) . '</td></tr></tbody></table>';
+
+		/* Khoản giữ lại: số tháng này + tích luỹ còn giữ — nhân viên biết mình có bao nhiêu đang chờ. */
+		$con = array();
+		foreach ( (array) $p['tichLuy'] as $kh => $x ) { if ( (float) $x['con'] > 0 ) { $con[ $kh ] = $x['con']; } }
+		if ( $p['giu'] || $con ) {
+			$h .= '<table><thead><tr><th>Khoản giữ lại (chưa trả)</th><th class="p">Tháng này</th>'
+				. '<th class="p">Tích luỹ còn giữ</th></tr></thead><tbody>';
+			foreach ( array_unique( array_merge( array_keys( (array) $p['giu'] ), array_keys( $con ) ) ) as $kh ) {
+				$h .= '<tr><td>' . esc_html( isset( VHCC_ChotLuong::CONG[ $kh ] ) ? VHCC_ChotLuong::CONG[ $kh ] : $kh ) . '</td>'
+					. '<td class="p">' . ( isset( $p['giu'][ $kh ] ) ? $tien( $p['giu'][ $kh ] ) : '—' ) . '</td>'
+					. '<td class="p">' . ( isset( $con[ $kh ] ) ? $tien( $con[ $kh ] ) : '—' ) . '</td></tr>';
+			}
+			$h .= '</tbody></table><p class="mo">Khoản giữ lại không nằm trong Tổng nhận tháng này — '
+				. 'công ty trả vào kỳ quản lý chọn.</p>';
+		}
+		if ( $p['thieuGio'] ) {
+			$h .= '<p class="mo">Tháng này có ' . (int) $p['thieuGio'] . ' lượt thiếu một đầu giờ nên không tính.</p>';
+		}
+		$h .= '<p class="mo">Số hệ thống tính từ giờ đã chấm và các khoản kế toán đã nhập. Có sai lệch '
+			. 'xin báo cửa hàng trưởng hoặc kế toán.</p>';
+		$h .= '<div class="ky"><div>Người nhận<br><br><br>' . esc_html( $p['hoTen'] ) . '</div>'
+			. '<div>Kế toán<br><br><br>&nbsp;</div></div>';
+		return $h . $cuoi;
 	}
 
 	/** Tên các khoản cộng / trừ, để màn gọi đúng chữ kế toán đang dùng. */

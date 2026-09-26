@@ -4515,7 +4515,11 @@ function vePhieu(){
 			el('bangPhieu').innerHTML = '<p class="trong">' + esc(j.loi) + '</p>';
 			return;
 		}
-		var h = '<table><thead><tr><th>Việc</th><th>Giờ</th><th>Đơn giá</th><th>Thành tiền</th>'
+		/* 26/09/2026 — bản in A4 của chính phiếu này (Lưu thành PDF), cùng link gửi qua chuông
+		   và email lúc công bố. */
+		var h = j.linkIn ? ('<p style="margin:0 0 8px"><a class="nut" target="_blank" rel="noopener" href="'
+			+ esc(j.linkIn) + '">🖨 In / Lưu PDF phiếu này</a></p>') : '';
+		h += '<table><thead><tr><th>Việc</th><th>Giờ</th><th>Đơn giá</th><th>Thành tiền</th>'
 			+ '</tr></thead><tbody>';
 		for(var i=0;i<j.dong.length;i++){
 			var d = j.dong[i];
@@ -4524,7 +4528,10 @@ function vePhieu(){
 			   một con số mượn ở đâu đó. */
 			var mo = (d.cheDo === 'thang')
 				? (tienVN(d.luongCb) + '/tháng × ' + esc(d.congThuc) + '/' + esc(d.congYc || '—') + ' công')
-				: (d.gia === null ? '<b>chưa khai đơn giá</b>' : tienVN(d.gia) + '/giờ');
+				/* Dòng Ca đêm của cơ sở theo công: số công đêm × giá 1 công đêm, không phải giờ. */
+				: (d.cheDo === 'cong')
+					? (esc(d.congThuc) + ' công đêm × ' + (d.gia === null ? '<b>chưa khai giá</b>' : tienVN(d.gia)))
+					: (d.gia === null ? '<b>chưa khai đơn giá</b>' : tienVN(d.gia) + '/giờ');
 			h += '<tr><td style="text-align:left">' + esc(d.cv || '—') + '</td>'
 				+ '<td>' + (d.gio === null ? '—' : esc(d.gio)) + '</td>'
 				+ '<td>' + mo + '</td>'
@@ -4573,6 +4580,23 @@ function vePhieu(){
 					: '' )
 				+ '<div class="hang" style="justify-content:space-between;font-size:17px">'
 				+ '<span><b>Tổng</b></span><b>' + tienVN(j.tong) + '</b></div></div>';
+		}
+
+		/* Khoản giữ lại, trả sau: số tháng này + tích luỹ còn giữ — không nằm trong Tổng. */
+		var giu = j.giu || {}, tl = j.tichLuy || {}, dsg = [], kg;
+		var tenCong = (PL_KHOAN && PL_KHOAN.cong) ? PL_KHOAN.cong : {};
+		for(kg in tenCong){
+			if(!Object.prototype.hasOwnProperty.call(tenCong, kg)) continue;
+			var conk = (tl[kg] && +tl[kg].con > 0) ? +tl[kg].con : 0;
+			if(!giu[kg] && !conk) continue;
+			dsg.push('<div class="hang" style="justify-content:space-between"><span>' + esc(tenCong[kg])
+				+ '</span><span>tháng này <b>' + (giu[kg] ? tienVN(giu[kg]) : '—') + '</b> · còn giữ <b>'
+				+ (conk ? tienVN(conk) : '—') + '</b></span></div>');
+		}
+		if(dsg.length){
+			h += '<div class="the" style="margin-top:10px;padding:10px"><b>Khoản giữ lại (chưa trả)</b>'
+				+ dsg.join('') + '<p class="ct" style="text-align:left;margin:6px 0 0">Không nằm trong Tổng '
+				+ 'tháng này — công ty trả vào kỳ quản lý chọn.</p></div>';
 		}
 
 		if(j.thieuGio){

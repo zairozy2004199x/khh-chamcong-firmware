@@ -2576,10 +2576,15 @@ class VHCC_Web {
 				isset( $_POST['pl_th'] ) ? wp_unslash( $_POST['pl_th'] ) : '',
 				( 'phieu_cb' === $viec ) );
 			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
+			/* 26/09/2026 — công bố xong thì gửi phiếu cho từng người, cả hai kênh (chuông trong
+			   app + email). Công bố đã ghi xong ở trên — lượt gửi hỏng không làm hỏng công bố. */
+			$g = $r['bat'] ? VHCC_GuiPhieu::gui_cong_bo( $toi, $r['coso'], $r['thang'] ) : null;
 			return array( array( 'xong' => $r['bat']
 				? 'Đã công bố phiếu lương tháng ' . $r['thang'] . ' của ' . $r['coso']
 					. '. Nhân viên cơ sở này xem được phiếu CỦA CHÍNH HỌ trên trạm — họ không '
-					. 'thấy dòng của ai khác.'
+					. 'thấy dòng của ai khác. Đã gửi thông báo cho ' . $g['bao'] . ' người, email cho '
+					. $g['mail'] . ' người' . ( $g['khongMail'] ? ' (' . $g['khongMail'] . ' người chưa có email trong hồ sơ)' : '' )
+					. ( $g['hongMail'] ? ' — ' . $g['hongMail'] . ' thư gửi KHÔNG được, kiểm tra cấu hình gửi thư của site' : '' ) . '.'
 				: 'Đã thu lại phiếu lương tháng ' . $r['thang'] . ' của ' . $r['coso']
 					. '. Trạm thôi hiện tháng này.' ) );
 		}
@@ -3369,6 +3374,12 @@ class VHCC_Web {
 				   `VHCC_NhanSu::dat_vai_tro()`. */
 				if ( '' !== $v && ! in_array( $v, VHCC_Vai::ds_ten(), true ) ) { continue; }
 				$ghi[ $c ] = $v;
+			} elseif ( 'email' === $c ) {
+				/* Email sai thì phiếu lương gửi vào hư không mà không ai biết — chối ngay ở đây. */
+				if ( '' !== $v && ! is_email( $v ) ) {
+					return array( 'ok' => false, 'error' => 'Email "' . $v . '" không đúng dạng. Không lưu gì cả.' );
+				}
+				$ghi[ $c ] = strtolower( $v );
 			} else { $ghi[ $c ] = $v; }
 		}
 		$co = $wpdb->get_var( $wpdb->prepare(
@@ -11280,6 +11291,16 @@ class VHCC_Web {
 	 * ⚠️ GIÁ NÀY CHUNG CẢ KHỐI (cùng bộ phận), không riêng một cơ sở — nói ra ngay dưới ô. Khối
 	 *    đã khai riêng giá công đêm thì lưu vào bản riêng của khối; không thì vào bản chung.
 	 */
+	/** Một câu "đã gửi phiếu qua chuông / email lúc …" cạnh nút công bố (xem `VHCC_GuiPhieu`). */
+	private static function chu_lan_gui( $cs, $th ) {
+		$g = VHCC_GuiPhieu::lan_gui( $cs, $th );
+		if ( ! $g ) { return ''; }
+		return ' 📨 Đã gửi phiếu: thông báo <b>' . (int) $g['bao'] . '</b> người · email <b>' . (int) $g['mail']
+			. '</b> người' . ( ! empty( $g['khongMail'] ) ? ' (' . (int) $g['khongMail'] . ' chưa có email)' : '' )
+			. ( ! empty( $g['hongMail'] ) ? ' · <b>' . (int) $g['hongMail'] . ' thư hỏng</b>' : '' )
+			. ' — ' . esc_html( (string) $g['luc'] ) . '.';
+	}
+
 	private static function the_gia_cong_dem( $ky, $toi, $cs, $th ) {
 		$cfg  = VHCC_Luong::vp_cfg( $cs );
 		$gia  = isset( $cfg['demGiaCong'] ) ? (float) $cfg['demGiaCong'] : 0.0;
@@ -11914,6 +11935,7 @@ class VHCC_Web {
 					? '✔ <b>Đang công bố.</b> Nhân viên cơ sở này xem được phiếu tháng '
 						. esc_html( $th ) . ' của CHÍNH HỌ ở trang chấm công online, tab '
 						. '<b>Công của tôi</b>. Họ chỉ thấy dòng của mình.'
+						. self::chu_lan_gui( $cs, $th )
 					: 'Chưa công bố — trên trạm nhân viên không thấy tháng này. Bấm khi đã gõ xong '
 						. 'khoản cộng / khoản trừ.' )
 				. '</span></div></form>';
@@ -14938,6 +14960,8 @@ JS;
 			'gioi_tinh' => 'Giới tính',
 			'cccd'      => 'CCCD',
 			'sdt'       => 'Số điện thoại',
+			/* 26/09/2026 — nơi nhận phiếu lương qua email khi kế toán bấm Công bố. */
+			'email'     => 'Email (nhận phiếu lương)',
 			'dia_chi'   => 'Địa chỉ',
 			/* 🔴 08/09/2026 — anh Thắng: *"nhập đủ trường thông tin nếu có"*. Hai ô này CÓ trong
 			   bảng `nhan_vien` và cột vẫn đang giữ dữ liệu, nhưng trước đây chỉ khai được ở màn
@@ -14960,7 +14984,7 @@ JS;
 
 	/** Các ô sửa được ngoài web. Cố ý KHÔNG cho sửa `ma_nv` — đổi mã là sửa mọi hàng chấm công. */
 	const COT_SUA = array( 'ho_ten', 'cua_hang', 'coso_phu', 'chuc_vu', 'nhiem_vu', 'vai_tro',
-		'trang_thai_lam_viec', 'sdt', 'cccd', 'ngay_sinh', 'gioi_tinh', 'dia_chi',
+		'trang_thai_lam_viec', 'sdt', 'email', 'cccd', 'ngay_sinh', 'gioi_tinh', 'dia_chi',
 		'nguoi_lien_he_khan', 'sdt_khan',
 		'ngay_vao_lam', 'loai_hop_dong', 'luong_co_ban', 'so_tai_khoan', 'ngan_hang',
 		'pin_dang_nhap', 'pin_may' );
