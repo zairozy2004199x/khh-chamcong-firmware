@@ -14,6 +14,8 @@ class KhachTram(
     private val tenMien: String,
     private val moNgoai: (Uri) -> Unit,
     private val bao: (String) -> Unit,
+    /** Mở hộp In của Android cho trang đang hiện — xem `shouldOverrideUrlLoading`. */
+    private val inTrang: () -> Unit,
 ) : WebViewClient() {
 
     /**
@@ -50,6 +52,15 @@ class KhachTram(
            trang lỗi trắng. Giao cho hệ điều hành. */
         if (giao != null && giao != "http" && giao != "https") {
             moNgoai(u)
+            return true
+        }
+        /* 🖨 NÚT "IN / LƯU THÀNH PDF" (phiếu lương, bộ hồ sơ nhận việc). Trong WebView
+           `window.print()` không làm gì cả — không lỗi, không báo. Nên trong app, trang in đổi nút
+           sang một lượt mở chính nó kèm `vhcc_in=1` (xem `VHCC_Pdf::nut_in`); tới đây thì KHÔNG
+           nạp gì, mà mở hộp In của Android — có sẵn "Lưu dưới dạng PDF".
+           ⚠️ Chỉ nhận trong nhà: một trang lạ không được bật hộp in của app. */
+        if (trongNha(u) && u.getQueryParameter("vhcc_in") == "1") {
+            inTrang()
             return true
         }
         if (trongNha(u)) return false

@@ -27,6 +27,22 @@ Nên app mang đúng những thứ **chỉ APK mới cho được**, và không 
 
 ---
 
+## Bản 1.3.0 (26/09/2026)
+
+Mọi thứ mới trên trang trạm (lời chào ngày mới, đăng nhập mới, bảng "Bắt đầu cùng K&H" và nội
+quy, chuyển tab kiểu giọt nước, phiếu lương) **tự có trong app** — app mở đúng trang ấy. Bản này chỉ
+sửa hai chỗ mà WebView làm khác trình duyệt:
+
+* **🖨 In / Lưu PDF phiếu lương và bộ hồ sơ nhận việc.** WebView bỏ qua `window.print()` — nút bấm
+  không có gì xảy ra. Nay trang in nhận ra app (đuôi `KHChamCongApp/` trong User-Agent) và mở lại
+  chính nó kèm `vhcc_in=1`; app chặn lượt ấy và mở **hộp In của Android** (có "Lưu dưới dạng PDF").
+* **Bảng nhập môn:** mở bằng app là việc "Cài app" tự tích.
+
+⚠️ Hai đầu (PHP + Kotlin) phải khớp — canh trong `tools/test/kiem-app-chamcong.py`. Máy còn app
+1.2.0 thì nút in vẫn không chạy cho tới khi cài 1.3.0; mọi thứ khác vẫn chạy.
+
+---
+
 ## ⚠️ Một thứ bản 1.0 CHƯA CÓ: nhắc chấm công
 
 Lời nhắc hiện chạy bằng **Web Push**, mà Web Push **không hoạt động trong WebView** — giới hạn

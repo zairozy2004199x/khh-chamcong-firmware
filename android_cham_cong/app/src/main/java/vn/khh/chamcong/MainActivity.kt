@@ -3,12 +3,15 @@ package vn.khh.chamcong
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.print.PrintAttributes
+import android.print.PrintManager
 import android.webkit.CookieManager
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -231,6 +234,7 @@ class MainActivity : AppCompatActivity() {
             tenMien = Luu.tenMien(this),
             moNgoai = { u -> moNgoai(u) },
             bao = { s -> veHong(s) },
+            inTrang = { inTrangDangMo() },
         )
 
         /* Tệp tải về (xuất bảng công .xlsx) giao cho trình duyệt: WebView không tự tải được, và
@@ -245,6 +249,28 @@ class MainActivity : AppCompatActivity() {
         )
         web = w
         return w
+    }
+
+    /**
+     * Hộp In của Android cho trang đang mở trong WebView (phiếu lương, bộ hồ sơ nhận việc).
+     * Người dùng chọn máy in, hoặc "Lưu dưới dạng PDF" để cất phiếu vào máy — đúng việc mà nút
+     * "In / Lưu thành PDF" làm trên trình duyệt. Khổ A4 vì cả hai trang in đều dàn theo A4.
+     */
+    private fun inTrangDangMo() {
+        val w = web ?: return
+        val ten = (w.title ?: "").ifBlank { "Phieu luong K&H" }
+        try {
+            val may = getSystemService(Context.PRINT_SERVICE) as PrintManager
+            may.print(
+                ten,
+                w.createPrintDocumentAdapter(ten),
+                PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.ISO_A4).build()
+            )
+        } catch (e: Exception) {
+            /* Máy không có dịch vụ in (hiếm, vài bản ROM rút gọn). Nói ra, đừng im. */
+            Toast.makeText(this, "Máy này không mở được hộp In. Mở trang bằng Chrome để in.", Toast.LENGTH_LONG)
+                .show()
+        }
     }
 
     private fun banApp(): String = try {

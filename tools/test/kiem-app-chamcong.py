@@ -302,6 +302,26 @@ t('⚠️ chưa có quyền thông báo thì nuốt đúng SecurityException',
 t('   PendingIntent khai IMMUTABLE (bắt buộc từ Android 12)',
   'FLAG_IMMUTABLE' in nk)
 
+# ── 🖨 IN / LƯU PDF TRONG APP (1.3.0). WebView bỏ qua `window.print()` — không lỗi, không báo.
+#    Hai đầu phải khớp nhau: trang in (PHP) đổi nút sang `vhcc_in=1` khi thấy đuôi User-Agent của
+#    app, và app nhận đúng tham số ấy để mở hộp In của Android. Sửa một đầu mà quên đầu kia là
+#    nút in lại chết im lặng — nên canh cả hai trong cùng một bài.
+WP = os.path.normpath(os.path.join(GOC, '..', 'wordpress', 'vhcp-cham-cong'))
+pdf = open(os.path.join(WP, 'includes', 'class-vhcc-pdf.php'), encoding='utf-8').read()
+t('🔴 app gắn đuôi KHChamCongApp/ vào User-Agent', '" KHChamCongApp/"' in mn)
+t('🔴 trang in nhận ra app qua đúng đuôi ấy và đổi sang vhcc_in=1',
+  'KHChamCongApp\\//.test(navigator.userAgent)' in pdf and "vhcc_in=1" in pdf)
+for tep in ('class-vhcc-phieu-luong.php', 'class-vhcc-tiep-nhan.php'):
+    nd = open(os.path.join(WP, 'includes', tep), encoding='utf-8').read()
+    t('   %s dùng nút in chung (không tự viết window.print())' % tep,
+      'VHCC_Pdf::nut_in()' in nd and 'onclick="window.print()"' not in nd)
+t('🔴 app chặn vhcc_in=1 và mở hộp In', 'getQueryParameter("vhcc_in") == "1"' in kt and 'inTrang()' in kt)
+t('⚠️ chỉ trang trong nhà mới bật được hộp in', 'trongNha(u) && u.getQueryParameter("vhcc_in")' in kt)
+t('   hộp In của Android in chính WebView đang mở, khổ A4',
+  'createPrintDocumentAdapter' in mn and 'MediaSize.ISO_A4' in mn)
+tram = open(os.path.join(WP, 'templates', 'tram.php'), encoding='utf-8').read()
+t('   bảng nhập môn: mở trong app = đã cài app', "if(/KHChamCongApp\\//.test(navigator.userAgent || '')){ return true; }" in tram)
+
 # ── Manifest: xin đúng quyền, và KHÔNG xin quyền nền.
 mf = bo_chu_thich_xml(
     open(os.path.join(GOC, 'app', 'src', 'main', 'AndroidManifest.xml'), encoding='utf-8').read())

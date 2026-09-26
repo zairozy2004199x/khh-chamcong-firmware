@@ -568,7 +568,7 @@ class VHCC_TiepNhan {
 		$e = function ( $s ) { return esc_html( (string) $s ); };
 
 		$h = $dau . ( '' !== $bao ? '<div class="bao">' . $e( $bao ) . '</div>' : '' )
-			. '<div class="thanh"><button onclick="window.print()">In / Lưu thành PDF</button></div>';
+			. '<div class="thanh">' . VHCC_Pdf::nut_in() . '</div>';
 		$nv_ky = isset( $bg['nvKy'] ) ? $bg['nvKy'] : null;
 		$cty_ky = isset( $bg['ctyKy'] ) ? $bg['ctyKy'] : null;
 		$ma_xt = strtoupper( implode( '-', str_split( substr( self::bam_hd( $bg ), 0, 16 ), 4 ) ) );

@@ -34,6 +34,19 @@ class VHCC_Pdf {
 	const MAX_TONG_HOP = 500;
 	const MAX_O        = 120;
 
+	/**
+	 * Nút "In / Lưu thành PDF" cho các trang in (phiếu lương, bộ hồ sơ nhận việc).
+	 *
+	 * 🔴 TRONG APP ANDROID `window.print()` KHÔNG LÀM GÌ CẢ — WebView bỏ qua nó, không lỗi, không
+	 *    báo. Nhân viên bấm nút rồi đứng nhìn. App (từ 1.3.0) nhận lượt mở địa chỉ có `vhcc_in=1`
+	 *    thì tự mở hộp In của Android (có "Lưu dưới dạng PDF"), nên trong app nút đổi sang đường ấy;
+	 *    ngoài app vẫn là `window.print()` như cũ. Nhận ra app qua đuôi `KHChamCongApp/` mà app gắn
+	 *    vào User-Agent (xem `MainActivity.taoWeb`).
+	 */
+	public static function nut_in() {
+		return '<button onclick="if(/KHChamCongApp\//.test(navigator.userAgent)){location.href=location.href.split(\'#\')[0]+(location.search?\'&\':\'?\')+\'vhcc_in=1\'}else{window.print()}">In / Lưu thành PDF</button>';
+	}
+
 	public static function ten_cong_ty() {
 		$t = get_option( 'vhcc_ten_cong_ty', '' );
 		return '' !== trim( (string) $t ) ? trim( (string) $t ) : 'CÔNG TY TNHH GIẢI TRÍ K&H';

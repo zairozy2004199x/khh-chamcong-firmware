@@ -2612,6 +2612,8 @@ function nmNgay(s){
 	return m ? m[3] + '/' + m[2] + '/' + m[1] : '';
 }
 function nmDaCai(){
+	/* App Android K&H (đuôi `KHChamCongApp/` trong User-Agent) — đang mở trong app tức là đã cài. */
+	if(/KHChamCongApp\//.test(navigator.userAgent || '')){ return true; }
 	try { return !!((window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone); }
 	catch(e){ return false; }
 }

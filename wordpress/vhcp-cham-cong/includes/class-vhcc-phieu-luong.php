@@ -433,7 +433,7 @@ class VHCC_PhieuLuong {
 		$tien = function ( $v ) { return null === $v ? '—' : esc_html( number_format( (float) $v, 0, ',', '.' ) ) . 'đ'; };
 		$d0 = $p['dong'][0];
 		$h  = $dau;
-		$h .= '<div class="thanh"><button onclick="window.print()">In / Lưu thành PDF</button></div>';
+		$h .= '<div class="thanh">' . VHCC_Pdf::nut_in() . '</div>';
 		$h .= '<div class="cty">' . esc_html( VHCC_Pdf::ten_cong_ty() ) . '</div>';
 		$h .= '<h1>PHIẾU LƯƠNG THÁNG ' . esc_html( (int) substr( $tt, 5, 2 ) . '/' . substr( $tt, 0, 4 ) ) . '</h1>';
 		$h .= '<p class="phu">' . esc_html( VHCC_NhanSu::ten_coso( $p['coSo'] ) ) . '</p>';
