@@ -3879,6 +3879,14 @@ class VHCC_Web {
 			. '.tach-cong{font-size:10.5px;font-weight:500;line-height:1.3;margin-top:2px;'
 			. 'color:var(--chu-mo);white-space:nowrap}'
 			. '.tach-cong b{font-weight:700;color:var(--chu)}'
+			/* Hai hàng ca ngày / ca đêm của cùng một người — xem `ve_hai_hang_vp()`. */
+			. '.ca-nhan{display:inline-block;font-size:10.5px;font-weight:700;padding:0 5px;margin-left:4px;'
+			. 'border-radius:var(--bo-badge);background:var(--vang-nhat);color:var(--vang-dam)}'
+			. 'tr.hang-dem>td{border-top:1px dashed var(--vien-dam)}'
+			. 'tr.hang-dem>td.ten-dem{padding-left:18px}'
+			. 'tr.hang-dem .ca-nhan{background:var(--tim-nhat);color:var(--tim-dam)}'
+			. 'tr.hang-dem .mdem{font-size:13px;font-weight:700}'
+			. '.mbu{font-size:9.5px;font-weight:600;color:var(--luc-dam);line-height:1.15}'
 			. '.mghep{font-size:9.5px;font-weight:700;line-height:1.15;margin-top:2px;padding:0 3px;'
 			. 'border-radius:var(--bo-o-bang);background:var(--lam-nhat);color:var(--lam-dam);letter-spacing:.2px}'
 			/* Nhãn 📷 ảnh chấm công — nằm dưới số, ngoài đường bấm sửa/bù nên bấm vào ảnh KHÔNG
@@ -9380,6 +9388,21 @@ class VHCC_Web {
 			$ngd = isset( $o[ $ma ] ) ? $o[ $ma ] : array();
 			$ck_nguoi = isset( $ck_ds[ strtoupper( $ma ) ] ) ? $ck_ds[ strtoupper( $ma ) ] : array();
 
+			/* 🔴 CÓ CA ĐÊM TRONG THÁNG -> HAI HÀNG: ☀ CA NGÀY / 🌙 CA ĐÊM.
+			   Anh Thắng 26/09/2026: *"anh chỉ cần biết ca đêm bao công, ca ngày bao công"* /
+			   *"chứ này sao biết nào ca đêm ca ngày"* / *"tổng cũng chẳng rõ ràng"*. Một ô gộp
+			   tổng ngày+đêm rồi nhét 🌙 nhỏ bên dưới thì phải tự trừ nhẩm mới ra từng ca. */
+			if ( self::co_ca_dem_vp( $ngd ) ) {
+				$khop_2 = self::ve_hai_hang_vp( $e, $ngd, $so_ngay, $tt, array( $sg_n, $sg_m ), $bc_ca,
+					$duoc_sua, $duoc_bu, $toi, isset( $anh_ds[ strtoupper( $ma ) ] ) ? $anh_ds[ strtoupper( $ma ) ] : '',
+					$ck_nguoi );
+				if ( ! $khop_2 ) { $lech++; }
+				if ( '' !== $sg_n && 0 === strcasecmp( $ma, (string) $sg_m ) ) {
+					self::hang_sua( $so_ngay + 2, (string) $b['station'], $sg_n, $ma, $sg_co, $ky, $toi );
+				}
+				continue;
+			}
+
 			/* Neo `id="suaday"` KHÔNG còn đặt trên `<tr>` — xem khối 🔴 giải thích ở ve_luoi_gio()
 			   phía trên (nhảy loạn xạ vì neo trên cả hàng không cuộn NGANG đúng cột ngày). Đặt
 			   thẳng vào `<td class="dang-sua">` của đúng ngày đang sửa, trong vòng lặp dưới. */
@@ -9530,8 +9553,12 @@ class VHCC_Web {
 			. '<span class="k vang">kế toán chấm chủ nhật</span> '
 			. '<span class="k hong">có giờ nhưng KHÔNG ra công</span> '
 			. '<span class="k hong">? = có giờ vào mà THIẾU giờ ra</span>'
-			. '<br>Dòng nhỏ <b>🌙</b> nằm <b>ngay trong ô</b> là phần ca đêm của ngày đó — mỗi '
-			. 'người chỉ một hàng. <b>🌙</b> một mình = đêm đó CÓ làm · <b>🌙 kèm số</b> = công '
+			. '<br>Người <b>có ca đêm</b> trong tháng hiện <b>2 hàng</b>: <b>☀ Ca ngày</b> (công ngày + '
+			. 'tăng ca + bù — dòng xanh nhỏ <b>bù …</b> là công bù của đêm trước) và <b>🌙 Ca đêm</b> '
+			. '(công đêm). Mỗi hàng có tổng riêng ở cột TỔNG; dòng <b>cả 2 ca</b> là tổng cộng. '
+			. 'Ở hàng đêm, <b>🌙</b> một mình = đêm đó CÓ làm, công nằm ở ô hôm sau.'
+			. '<br>Người chỉ làm ca ngày vẫn một hàng; dòng nhỏ <b>🌙</b> trong ô (nếu có) là phần '
+			. 'ca đêm của ngày đó. <b>🌙</b> một mình = đêm đó CÓ làm · <b>🌙 kèm số</b> = công '
 			. 'đêm được tính vào ngày đó (ca đêm đêm trước cho công sang hôm sau) · '
 			. '<b class="chu-hong">🌙0</b> = đêm đó CÓ làm mà KHÔNG ra công — hoặc không đủ giờ '
 			. 'tối thiểu, hoặc <b>thiếu một đầu giờ</b> (chỉ bấm vào, hoặc chỉ bấm ra). '
@@ -9553,6 +9580,132 @@ class VHCC_Web {
 				. 'tính — đừng dùng số nào cả, báo lại để tra.</b></p>'
 			: '<br><span class="chu-luc">✓ Tổng từng người khớp với phép tính.</span></p>';
 		echo '</div>';
+	}
+
+	/** Ngày ấy có dấu vết ca đêm nào không (có công đêm, hoặc có giờ hàng đêm dù chưa ra công). */
+	private static function ngay_co_dem_vp( $d ) {
+		return (float) $d['congDem'] > 0.005 || '' !== $d['h2vao'] || '' !== $d['h2ra']
+			|| ! empty( $d['demThieuGio'] ) || ! empty( $d['demChuaDuCap'] );
+	}
+
+	private static function co_ca_dem_vp( $ngd ) {
+		foreach ( $ngd as $d ) {
+			if ( self::ngay_co_dem_vp( $d ) ) { return true; }
+		}
+		return false;
+	}
+
+	/**
+	 * Người có ca đêm trong tháng: HAI HÀNG — ☀ ca ngày (công ngày + tăng ca + bù) và 🌙 ca đêm
+	 * (công đêm). Mỗi hàng một tổng riêng; tổng cả hai ca nằm dưới tổng hàng đêm.
+	 *
+	 * ⚠️ CÔNG BÙ NẰM Ở HÀNG NGÀY — anh Thắng: *"công bù là tự cộng vào khhcm"*. Có dòng nhỏ
+	 *    "bù …" ngay trong ô để không ai tưởng ngày ấy làm 1,5 ca ngày thật.
+	 * ⚠️ KHÔNG ĐỔI CON SỐ NÀO. Hai hàng chỉ tách đúng các khoản `vp_tinh_nguoi()` đã trả về —
+	 *    cộng hai tổng hàng phải bằng `tong` của phép tính, lệch là kêu (trả về false).
+	 *
+	 * @return bool Tổng hai hàng có khớp `tong` của phép tính không.
+	 */
+	private static function ve_hai_hang_vp( $e, $ngd, $so_ngay, $tt, $sg, $bc_ca, $duoc_sua, $duoc_bu,
+		$toi, $anh, $ck_nguoi ) {
+		$ma = (string) $e['ma'];
+		list( $sg_n, $sg_m ) = $sg;
+		$h_ngay = '';
+		$h_dem  = '';
+		$t_ngay = 0.0;
+		$t_dem  = 0.0;
+		for ( $i = 1; $i <= $so_ngay; $i++ ) {
+			$ngay_o = sprintf( '%s-%02d', $tt, $i );
+			$dang   = ( $ngay_o === $sg_n && 0 === strcasecmp( $ma, (string) $sg_m ) );
+			$lop_dang = ( $dang ? ' dang-sua' : '' ) . '"' . ( $dang ? ' id="suaday"' : '' );
+			if ( ! isset( $ngd[ $i ] ) ) {
+				$f_bc = self::o_bc_ca( $bc_ca, $ma, $i );
+				$h_ngay .= '<td class="' . ( '' !== $f_bc['lop'] ? 'oc' . $f_bc['lop'] : 'o' ) . $lop_dang
+					. ( '' !== $f_bc['chu'] ? ' title="' . esc_attr( $f_bc['chu'] ) . '"' : '' ) . '>'
+					. self::o_sua( '·', $ngay_o, $ma, false, $duoc_sua, $duoc_bu ) . '</td>';
+				$h_dem .= '<td class="o">' . self::o_sua( '·', $ngay_o, $ma, false, $duoc_sua, $duoc_bu ) . '</td>';
+				continue;
+			}
+			$d = $ngd[ $i ];
+
+			/* ☀ Hàng ngày. */
+			$c_ngay = (float) $d['congNgay'] + (float) $d['congTangCa'] + (float) $d['congBu'];
+			$t_ngay += $c_ngay;
+			$co_gio_ngay = ( '' !== $d['vao'] || '' !== $d['ra'] );
+			$thieu_ngay  = ( ( '' !== $d['vao'] ) !== ( '' !== $d['ra'] ) );
+			$co_dem      = self::ngay_co_dem_vp( $d );
+			$nhan_cs     = empty( $d['tuCoSo'] ) ? '' : '<div class="mghep" title="' . esc_attr( 'Ngày này chấm ở '
+				. $d['tuCoSo'] . ' — cơ sở ấy đã GHÉP vào bảng này, nên công của nó ĐÃ nằm trong cột TỔNG.' )
+				. '">' . esc_html( $d['tuCoSo'] ) . '</div>';
+			if ( ! $co_gio_ngay && $c_ngay < 0.005 ) {
+				$h_ngay .= '<td class="o' . $lop_dang . '>'
+					. self::o_sua( '·', $ngay_o, $ma, true, $duoc_sua, $duoc_bu ) . '</td>';
+			} else {
+				$lop = '';
+				if ( $thieu_ngay || ! empty( $d['caLa'] ) ) { $lop = ' hong'; }
+				elseif ( ! empty( $d['ktCnNghi'] ) )     { $lop = ' vang'; }
+				elseif ( (float) $d['congTangCa'] > 0 )  { $lop = ' luc'; }
+				$so = ( $c_ngay >= 0.005 ? '<b>' . self::so_vp( $c_ngay ) . '</b>' : '<span class="chu-hong">0</span>' )
+					. ( $thieu_ngay ? '<span class="chu-hong"> ?</span>' : '' )
+					. ( (float) $d['congBu'] > 0.005 ? '<div class="mbu">bù ' . self::so_vp( $d['congBu'] ) . '</div>' : '' );
+				$h_ngay .= '<td class="oc' . $lop . $lop_dang . ' title="' . esc_attr( self::chu_o_vp( $d, $e['ten'] ) ) . '">'
+					. self::o_sua( $so, $ngay_o, $ma, true, $duoc_sua, $duoc_bu )
+					. ( $co_dem ? '' : $nhan_cs ) . self::manh_cham( $d['anhVao'], $d['anhRa'] ) . '</td>';
+			}
+
+			/* 🌙 Hàng đêm. */
+			if ( ! $co_dem ) {
+				$h_dem .= '<td class="o">' . self::o_sua( '·', $ngay_o, $ma, true, $duoc_sua, $duoc_bu ) . '</td>';
+				continue;
+			}
+			$c_dem  = (float) $d['congDem'];
+			$t_dem += $c_dem;
+			$thieu_dem = ( ( '' !== $d['h2vao'] ) !== ( '' !== $d['h2ra'] ) );
+			$khong_cong = ! empty( $d['demThieuGio'] ) || ! empty( $d['demChuaDuCap'] );
+			/* Giữ nguyên ký hiệu cũ: 🌙số = công đêm tính vào ngày này · 🌙0 đỏ = có làm mà không ra
+			   công · 🌙 trơn = đêm này có làm, công nằm ở ô hôm sau. */
+			if ( $c_dem > 0.005 ) {
+				$so = '<div class="mdem">🌙' . self::so_vp( $c_dem ) . '</div>';
+			} elseif ( $khong_cong ) {
+				$so = '<div class="mdem chu-hong">🌙0</div>';
+			} else {
+				$so = '<div class="mdem">🌙</div>';
+			}
+			$so .= ( $thieu_dem ? '<span class="chu-hong"> ?</span>' : '' );
+			$h_dem .= '<td class="oc' . ( $khong_cong || $thieu_dem ? ' hong' : ' tim' ) . '" title="'
+				. esc_attr( self::chu_o_vp( $d, $e['ten'] ) . "\n────────────────\n🌙 CA ĐÊM\n"
+					. self::chu_dem_vp( $d, $e['ten'] ) ) . '">'
+				. self::o_sua( $so, $ngay_o, $ma, true, $duoc_sua, $duoc_bu )
+				. $nhan_cs . self::manh_cham( $d['anhH2Vao'], $d['anhH2Ra'], true ) . '</td>';
+		}
+		$t_ngay = round( $t_ngay, 2 );
+		$t_dem  = round( $t_dem, 2 );
+		$ca_hai = round( $t_ngay + $t_dem, 2 );
+		$khop   = ( abs( $ca_hai - (float) $e['tong'] ) < 0.005 );
+
+		$k_ngay = (float) ( isset( $e['congNgay'] ) ? $e['congNgay'] : 0 );
+		$k_tc   = (float) ( isset( $e['congTangCa'] ) ? $e['congTangCa'] : 0 );
+		$k_bu   = (float) ( isset( $e['congBu'] ) ? $e['congBu'] : 0 );
+		$tach = array();
+		if ( $k_ngay > 0.005 ) { $tach[] = 'ngày <b>' . self::so_vp( $k_ngay ) . '</b>'; }
+		if ( $k_tc > 0.005 )   { $tach[] = 'TC <b>' . self::so_vp( $k_tc ) . '</b>'; }
+		if ( $k_bu > 0.005 )   { $tach[] = 'bù <b>' . self::so_vp( $k_bu ) . '</b>'; }
+
+		echo '<tr><td>' . self::ten_nguoi( $ma, $e['ten'], $toi, '', $anh )
+			. ( ! empty( $e['laKeToan'] ) ? ' <span class="duoi">KT</span>' : '' )
+			. ' <span class="ca-nhan">☀ Ca ngày</span>'
+			. self::chip_coso_khac( $ck_nguoi ) . '</td>' . $h_ngay
+			. '<td class="tong"><b>' . self::so_vp( $t_ngay ) . '</b>'
+			. ( count( $tach ) > 1 ? '<div class="tach-cong" title="' . esc_attr( 'Ca ngày gồm: công ngày '
+				. self::so_vp( $k_ngay ) . ' · tăng ca ' . self::so_vp( $k_tc ) . ' · công bù ' . self::so_vp( $k_bu ) )
+				. '">' . implode( ' · ', $tach ) . '</div>' : '' )
+			. '</td></tr>';
+		echo '<tr class="hang-dem"><td class="ten-dem"><span class="ca-nhan">🌙 Ca đêm</span></td>' . $h_dem
+			. '<td class="tong"><b>' . self::so_vp( $t_dem ) . '</b>'
+			. '<div class="tach-cong" title="Ca ngày + ca đêm">cả 2 ca <b>' . self::so_vp( $ca_hai ) . '</b></div>'
+			. ( $khop ? '' : '<div class="chu-hong">≠ ' . self::so_vp( $e['tong'] ) . '</div>' )
+			. '</td></tr>';
+		return $khop;
 	}
 
 	/** 1.5 -> "1.5", 2.0 -> "2". Số công hay là số lẻ .5, in ".00" vào chỉ tổ chật lưới. */

@@ -8919,10 +8919,25 @@ t( 'ngày được tính công đêm thì mặt trăng kèm SỐ',
    đúng người. Mà câu hỏi "trong 27.5 công này bao nhiêu là đêm" là câu hỏi ngay tại hàng. */
 t( '🔴 ô TỔNG có dòng tách công', strpos( $h_vp, '<div class="tach-cong"' ) !== false, $h_vp );
 t( 'tách ra phần công NGÀY', preg_match( '~class="tach-cong"[^>]*>ngày <b>~u', $h_vp ) === 1, $h_vp );
-t( '🔴 và phần công ĐÊM, đúng thứ anh hỏi',
-	preg_match( '~class="tach-cong"[^>]*>[^<]*(<b>[^<]*</b>[^<]*)*🌙 <b>~u', $h_vp ) === 1, $h_vp );
-t( 'chú thích cộng lại đủ bốn phần cho ai muốn soi',
-	strpos( $h_vp, 'Bốn phần cộng lại thành con số lớn' ) !== false, $h_vp );
+/* 26/09/2026 — anh Thắng: *"anh chỉ cần biết ca đêm bao công, ca ngày bao công"* / *"tổng cũng
+   chẳng rõ ràng"*. Người có ca đêm nay HAI hàng, mỗi hàng một tổng; hàng 🌙 có thêm "cả 2 ca". */
+$hai_vpb = vp_hang_cua( $h_vp, 'Người VPB' );
+t( '🔴 người có ca đêm: có hàng ☀ Ca ngày và hàng 🌙 Ca đêm riêng',
+	strpos( $hai_vpb, '☀ Ca ngày' ) !== false && strpos( $hai_vpb, '<tr class="hang-dem">' ) !== false
+	&& strpos( $hai_vpb, '🌙 Ca đêm' ) !== false, $hai_vpb );
+t( '🔴 hàng 🌙 có tổng công đêm riêng, kèm tổng cả 2 ca',
+	1 === preg_match( '~<tr class="hang-dem">.*<td class="tong"><b>[0-9.]+</b><div class="tach-cong"[^>]*>cả 2 ca <b>[0-9.]+</b>~su', $hai_vpb ),
+	$hai_vpb );
+if ( preg_match( '~^(.*?)</tr><tr class="hang-dem">(.*)$~s', $hai_vpb, $m_hai )
+	&& preg_match( '~<td class="tong"><b>([0-9.]+)</b>~', $m_hai[1], $m_t1 )
+	&& preg_match( '~<td class="tong"><b>([0-9.]+)</b><div class="tach-cong"[^>]*>cả 2 ca <b>([0-9.]+)</b>~u', $m_hai[2], $m_t2 ) ) {
+	t( '🔴 tổng ca ngày + tổng ca đêm = cả 2 ca',
+		abs( (float) $m_t1[1] + (float) $m_t2[1] - (float) $m_t2[2] ) < 0.005, array( $m_t1[1], $m_t2[1], $m_t2[2] ) );
+	t( '   hàng ☀ Ca ngày KHÔNG chứa công đêm (không có ô 🌙 số)',
+		0 === preg_match( '~<div class="mdem">🌙[0-9]~u', $m_hai[1] ), $m_hai[1] );
+} else {
+	t( 'dựng cảnh: tách được hai hàng và hai ô tổng của VPB', false, $hai_vpb );
+}
 /* 🔴 KHÔNG HIỆN GÌ KHI CẢ THÁNG CHỈ CÓ CÔNG NGÀY — lúc ấy "ngày 23" chỉ chép lại con số lớn
    ngay trên nó. VPA làm hai ngày thường, không đêm không tăng ca không bù. */
 $tach_vpa = vp_hang_cua( $h_vp, 'Người VPA' );
@@ -8951,8 +8966,10 @@ function vp_hang_cua( $h, $ten ) {
 	/* ⚠️ TÊN NAY CÓ THỂ BỌC TRONG MỘT LIÊN KẾT (anh Thắng 27/08: bấm tên là sang hồ sơ). Ghim
 	   `<td>TÊN</td>` là mọi phép thử của lưới đỏ cùng lúc vì một chuyện trang trí — 26 phép đỏ
 	   trong đúng một lượt. Nhận cả hai dạng: có thẻ bọc và không. */
+	/* 26/09/2026: người có ca đêm nay có THÊM một hàng `<tr class="hang-dem">` ngay dưới
+	   (☀ Ca ngày / 🌙 Ca đêm) — lấy luôn cả hàng ấy, nó là một phần của cùng một người. */
 	return preg_match( '~<tr[^>]*><td>(?:<a[^>]*>)?' . preg_quote( $ten, '~' )
-		. '(?:</a>)?(?:(?!</tr>).)*</tr>~s', $h, $m ) ? $m[0] : '';
+		. '(?:</a>)?(?:(?!</tr>).)*</tr>(?:<tr class="hang-dem">(?:(?!</tr>).)*</tr>)?~s', $h, $m ) ? $m[0] : '';
 }
 function vp_o_dau_tien( $h, $ten ) {
 	$hang = vp_hang_cua( $h, $ten );
