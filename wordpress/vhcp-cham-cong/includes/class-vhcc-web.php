@@ -1304,6 +1304,9 @@ class VHCC_Web {
 		/* `chot_luong_bang` = lưu CẢ BẢNG một lượt (xem `the_bang_nhap_luong()`). Gác y hệt
 		   `chot_luong` — nó gọi lại đúng mấy hàm ấy, không có đường lưu riêng. */
 		'doi_chieu_app', 'nap_app', 'chot_luong', 'chot_luong_bang',
+		/* Giá 1 công đêm khai ngay dưới bảng lương cơ sở theo công — gác thật ở
+		   `VHCC_Luong::dat_vp_cfg()` / `dat_cfg_khoi()` (bậc Kế toán). */
+		'gia_cong_dem',
 		/* Ẩn một mã khỏi bảng công: việc của màn Bảng công, và người cần nó nhất là Cửa hàng
 		   trưởng — đúng người mà chốt dưới sẽ đá ra bằng một câu về màn Hồ sơ họ không đụng
 		   tới. Gác thật ở `VHCC_An::dat()` (cong_coso + đúng phạm vi cơ sở). */
@@ -2029,6 +2032,29 @@ class VHCC_Web {
 		 * ⚠️ GIỜ CHẤM ĐỌC LẠI TỪ MÁY CHỦ cho TỪNG người — cùng lý do với khối từng-người: ô trên
 		 *    màn chỉ để nhìn, tin nó là ai sửa HTML cũng gõ được 900 giờ.
 		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( 'gia_cong_dem' === $viec ) {
+			$cs_g = isset( $_POST['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_POST['ccs'] ) ) : '';
+			if ( '' === $cs_g || ! VHCC_NhanSu::co_quyen_coso( $toi, $cs_g ) ) {
+				return array( array( 'loi' => 'Cơ sở không thuộc phạm vi của anh/chị.' ) );
+			}
+			if ( 'cong' !== VHCC_Luong::cach_tinh( $cs_g ) ) {
+				return array( array( 'loi' => $cs_g . ' không tính theo công — không có giá công đêm.' ) );
+			}
+			$gv = isset( $_POST['gia_dem'] ) ? trim( sanitize_text_field( wp_unslash( $_POST['gia_dem'] ) ) ) : '';
+			$gv = '' === $gv ? 0 : (float) VHCC_NhanSu::so_tien( $gv );
+			$khoi_g  = VHCC_Luong::bo_phan_cua( $cs_g );
+			$rieng_g = VHCC_Luong::vp_cfg_khoi( $khoi_g );
+			/* Khối đã khai riêng giá công đêm thì bản riêng đang thắng — lưu vào bản chung là
+			   màn báo "đã lưu" mà bảng lương không đổi một đồng. */
+			$r = array_key_exists( 'demGiaCong', $rieng_g )
+				? VHCC_Luong::dat_cfg_khoi( $toi, $khoi_g, array_merge( $rieng_g, array( 'demGiaCong' => $gv ) ) )
+				: VHCC_Luong::dat_vp_cfg( $toi, array( 'demGiaCong' => $gv ), '', '' );
+			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
+			return array( array( 'xong' => $gv > 0
+				? 'Đã lưu giá 1 công đêm: ' . number_format( $gv, 0, ',', '.' ) . 'đ — áp cho cả khối ' . $khoi_g . '.'
+				: 'Đã bỏ giá công đêm — dòng Ca đêm sẽ ghi "chưa khai giá".' ) );
+		}
+
 		if ( 'chot_luong_bang' === $viec ) {
 			$cs_b = isset( $_POST['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_POST['ccs'] ) ) : '';
 			$th_b = isset( $_POST['cth'] ) ? sanitize_text_field( wp_unslash( $_POST['cth'] ) ) : '';
@@ -2101,6 +2127,17 @@ class VHCC_Web {
 				if ( empty( $r_t['ok'] ) ) {
 					$hong[] = $ma_b . ': ' . ( isset( $r_t['error'] ) ? $r_t['error'] : 'lương tháng không lưu được' );
 					continue;
+				}
+				/* Hỗ trợ / khoản cộng · trừ — chỉ khi biểu mẫu có chở ô ấy (dấu `tien`), để một
+				   biểu mẫu cũ không có ô nào không xoá sạch khoản đã gõ ở khối từng người. */
+				if ( ! empty( $o_b['tien'] ) ) {
+					$r_ti = VHCC_ChotLuong::dat_tien( $toi, $cs_b, $th_b, $ma_b,
+						isset( $o_b['cong'] ) && is_array( $o_b['cong'] ) ? array_map( 'sanitize_text_field', $o_b['cong'] ) : array(),
+						isset( $o_b['tru'] ) && is_array( $o_b['tru'] ) ? array_map( 'sanitize_text_field', $o_b['tru'] ) : array() );
+					if ( empty( $r_ti['ok'] ) ) {
+						$hong[] = $ma_b . ': ' . ( isset( $r_ti['error'] ) ? $r_ti['error'] : 'khoản cộng / trừ không lưu được' );
+						continue;
+					}
 				}
 
 				/* ═══════════════════════════════════════════════════════════════════════════
@@ -11190,6 +11227,49 @@ class VHCC_Web {
 	 * @param array $b Kết quả `VHCC_BangLuong::dung()` đã dựng sẵn — KHÔNG dựng lại. Dựng lại là
 	 *                 quét lại cả tháng công lần hai cho cùng một màn.
 	 */
+	/**
+	 * 🔴 26/09/2026 — Ô "GIÁ 1 CÔNG ĐÊM" NGAY DƯỚI BẢNG LƯƠNG CƠ SỞ THEO CÔNG.
+	 *
+	 * Anh Thắng: *"Chỗ set giá lương công đêm chỗ nào, không có chỗ nhập"*. Ô này trước chỉ có
+	 * ở màn Cấu hình công (giữa mấy chục ô khác) — mà người cần nó đang đứng ở bảng lương, nhìn
+	 * dòng "Ca đêm — chưa khai giá". Khối "Đơn giá giờ" ở chỗ này thì vô nghĩa với cơ sở theo
+	 * công ("chưa có chức vụ nào để khai").
+	 *
+	 * ⚠️ GIÁ NÀY CHUNG CẢ KHỐI (cùng bộ phận), không riêng một cơ sở — nói ra ngay dưới ô. Khối
+	 *    đã khai riêng giá công đêm thì lưu vào bản riêng của khối; không thì vào bản chung.
+	 */
+	private static function the_gia_cong_dem( $ky, $toi, $cs, $th ) {
+		$cfg  = VHCC_Luong::vp_cfg( $cs );
+		$gia  = isset( $cfg['demGiaCong'] ) ? (float) $cfg['demGiaCong'] : 0.0;
+		$khoi = VHCC_Luong::bo_phan_cua( $cs );
+		$sua  = VHCC_Luong::co_quyen( isset( $toi['role'] ) ? (string) $toi['role'] : '' );
+		echo '<div class="the"><a id="giadem"></a><details' . ( $gia > 0 ? '' : ' open' ) . '>';
+		echo '<summary><b>🌙 Giá 1 công đêm</b> <span class="mo">— dòng “Ca đêm” của bảng ngay trên'
+			. ( $gia > 0 ? ' · đang ' . esc_html( number_format( $gia, 0, ',', '.' ) ) . 'đ' : ' · CHƯA KHAI' )
+			. '</span></summary>';
+		if ( ! $sua ) {
+			echo '<p class="mo" style="margin:8px 0 0">' . ( $gia > 0
+				? 'Đang áp <b>' . esc_html( number_format( $gia, 0, ',', '.' ) ) . 'đ</b> / công đêm.'
+				: 'Chưa khai.' ) . ' Khai giá là việc của <b>Kế toán</b> hoặc <b>Admin</b>.</p>';
+			echo '</details></div>';
+			return;
+		}
+		echo '<form method="post" class="hang" style="gap:10px;margin:8px 0 0" action="' . esc_url( add_query_arg(
+			array( 'man' => 'luong', 'lcs' => $cs, 'lth' => $th ), self::url() ) . '#giadem' ) . '">';
+		echo '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">';
+		echo '<input type="hidden" name="viec" value="gia_cong_dem">';
+		echo '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">';
+		echo '<div><label for="gcd">Giá 1 công đêm (đồng)</label><input id="gcd" name="gia_dem" inputmode="numeric" '
+			. 'value="' . esc_attr( $gia > 0 ? (string) (int) round( $gia ) : '' ) . '" placeholder="chưa khai" '
+			. 'style="width:140px;text-align:right"></div>';
+		echo '<div style="align-self:flex-end"><button class="chinh">Lưu giá công đêm</button></div>';
+		echo '</form>';
+		echo '<p class="mo" style="margin:6px 0 0;font-size:12px">Tiền ca đêm = <b>số công đêm × giá này</b>. '
+			. 'Giá áp cho <b>cả khối ' . esc_html( $khoi ) . '</b> (mọi cơ sở cùng bộ phận), mọi tháng — '
+			. 'không riêng ' . esc_html( $cs ) . '.</p>';
+		echo '</details></div>';
+	}
+
 	private static function the_gia_gio_cs( $ky, $toi, $cs, $th, $b ) {
 		/* Cửa XEM. Người gọi (`the_bang_luong_cs`) đã hỏi `cong_coso` + `co_quyen_coso` rồi, nên
 		   tới đây là đã đúng người đúng cơ sở; hỏi lại cho khối tự đứng được nếu sau này có ai
@@ -11597,7 +11677,26 @@ class VHCC_Web {
 				. '" inputmode="numeric" style="width:100px"></div>';
 			echo '<div><label>Công chuẩn</label><input name="' . $o . '[cong_yc]" value="'
 				. esc_attr( $cyc_o ) . '" style="width:70px"></div>';
-			echo '</div></details></td>';
+			echo '</div>';
+			/* 🔴 26/09/2026 — HỖ TRỢ / KHOẢN CỘNG · TRỪ NGAY TRONG BẢNG NHẬP. Anh Thắng: *"lương hỗ
+			   trợ như giữ xe, hỗ trợ tiền cơm … nếu có thì sẵn chỗ nhập, kế toán sẽ set"*. Trước chỉ
+			   gõ được ở khối "nhập ▾" từng người. Cùng một sổ (`VHCC_ChotLuong::dat_tien()`), và
+			   biểu mẫu chở ĐỦ mọi khoản — `dat_tien()` thay cả bộ của người ấy. */
+			$ti_o = VHCC_ChotLuong::tien_cua( $cs, $th, $ma );
+			$co_ti = ! empty( $ti_o['cong'] ) || ! empty( $ti_o['tru'] );
+			echo '<input type="hidden" name="' . $o . '[tien]" value="1">';
+			echo '<details' . ( $co_ti ? ' open' : '' ) . ' style="margin-top:6px"><summary class="mo">'
+				. '＋ hỗ trợ · khoản cộng / trừ</summary><div class="hang" style="gap:6px">';
+			foreach ( array( 'cong' => VHCC_ChotLuong::CONG, 'tru' => VHCC_ChotLuong::TRU ) as $nh_o => $ds_o ) {
+				foreach ( $ds_o as $k_o => $ten_o ) {
+					$v_o = isset( $ti_o[ $nh_o ][ $k_o ] ) ? (string) (int) $ti_o[ $nh_o ][ $k_o ] : '';
+					echo '<div><label style="font-size:11px">' . ( 'tru' === $nh_o ? '− ' : '' )
+						. esc_html( $ten_o ) . '</label><input name="' . $o . '[' . $nh_o . '][' . esc_attr( $k_o ) . ']"'
+						. ' value="' . esc_attr( $v_o ) . '" inputmode="numeric" style="width:100px"></div>';
+				}
+			}
+			echo '</div></details>';
+			echo '</details></td>';
 			echo '</tr>';
 
 			/* ---- dòng CA ĐÊM — chỉ đọc ---- */
@@ -12245,8 +12344,13 @@ class VHCC_Web {
 		}
 		echo '</details></div>';
 
-		/* Bảng giá đứng NGAY DƯỚI bảng dùng nó — xem chú thích dài ở `the_gia_gio_cs()`. */
-		self::the_gia_gio_cs( $ky, $toi, $cs, $th, $b );
+		/* Bảng giá đứng NGAY DƯỚI bảng dùng nó — xem chú thích dài ở `the_gia_gio_cs()`.
+		   Cơ sở theo công không có đơn giá giờ nào để khai — chỗ ấy là ô Giá 1 công đêm. */
+		if ( 'cong' === VHCC_Luong::cach_tinh( $cs ) ) {
+			self::the_gia_cong_dem( $ky, $toi, $cs, $th );
+		} else {
+			self::the_gia_gio_cs( $ky, $toi, $cs, $th, $b );
+		}
 
 		/* ═══════════════════════════════════════════════════════════════════════════════════
 		 * BẢNG NHẬP GỘP — xem `the_bang_nhap_luong()`.

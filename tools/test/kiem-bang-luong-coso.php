@@ -446,9 +446,11 @@ teq( 'A7 = STT',  'STT', $gv( 6, 0 ) );
 teq( 'C7 = CCCD', 'CCCD', $gv( 6, 2 ) );
 teq( 'H7 = Tiền/h', 'Tiền/h', $gv( 6, 7 ) );
 teq( 'M7 = Tổng lương', 'Tổng lương', $gv( 6, 12 ) );
-teq( 'Z7 = TOTAL SALARY', 'TOTAL SALARY', $gv( 6, 25 ) );
+/* 26/09/2026 — thêm cột "HT tiền cơm" (S) vào nhóm cộng: mọi cột từ S trở đi dịch phải một. */
+teq( 'AA7 = TOTAL SALARY', 'TOTAL SALARY', $gv( 6, 26 ) );
 teq( 'F8 = Số công YC (nằm ở dòng hai)', 'Số công YC', $gv( 7, 5 ) );
-teq( 'U8 = Tổng (của nhóm cộng)', 'Tổng', $gv( 7, 20 ) );
+teq( 'S8 = HT tiền cơm (cột mới)', 'HT tiền cơm', $gv( 7, 18 ) );
+teq( 'V8 = Tổng (của nhóm cộng)', 'Tổng', $gv( 7, 21 ) );
 
 /* Dòng dữ liệu đầu tiên nằm ở dòng 9, đúng như file. */
 /* ⚠️ TÌM DÒNG THEO TÊN, KHÔNG ĐÓNG CỨNG CHỈ SỐ. Bảng xếp theo tên, nên đổi một cái tên
@@ -467,22 +469,22 @@ teq( 'cột G = số giờ', 118.0, $gv( $d1, 6 ) );
 teq( 'cột H = đơn giá', 20000.0, $gv( $d1, 7 ) );
 teq( '🔴 cột I là CÔNG THỨC, không phải số chết', '=G' . $r1 . '*H' . $r1, $gv( $d1, 8 ) );
 teq( 'cột M = I+K−L, đúng công thức đọc từ file', '=I' . $r1 . '+K' . $r1 . '-L' . $r1, $gv( $d1, 12 ) );
-teq( 'cột U = tổng nhóm cộng', '=SUM(N' . $r1 . ':T' . $r1 . ')', $gv( $d1, 20 ) );
-teq( 'cột Y = tổng nhóm trừ', '=SUM(V' . $r1 . ':X' . $r1 . ')', $gv( $d1, 24 ) );
-teq( 'cột Z = M+U−Y, đúng công thức đọc từ file', '=M' . $r1 . '+U' . $r1 . '-Y' . $r1, $gv( $d1, 25 ) );
+teq( 'cột V = tổng nhóm cộng', '=SUM(N' . $r1 . ':U' . $r1 . ')', $gv( $d1, 21 ) );
+teq( 'cột Z = tổng nhóm trừ', '=SUM(W' . $r1 . ':Y' . $r1 . ')', $gv( $d1, 25 ) );
+teq( 'cột AA = M+V−Z, đúng công thức đọc từ file', '=M' . $r1 . '+V' . $r1 . '-Z' . $r1, $gv( $d1, 26 ) );
 
 /* 🔴 CỘT J K L N..Y ĐỂ TRỐNG — anh Thắng chốt kế toán điền. Có số 0 ở đấy là nói dối rằng hệ
    đã xét tới chúng. */
 /* 🔴 LUẬT ĐỔI 16/09/2026: mấy cột cộng/trừ nay DO NGƯỜI GÕ TRÊN TRANG, không để trống chờ kế
    toán nữa. Nhưng luật "ô chưa gõ thì để TRỐNG, không ghi 0" thì GIỮ NGUYÊN — một tờ lương đầy
    số 0 trông như đã xét hết mọi khoản, trong khi chưa ai gõ gì. */
-foreach ( array( 9 => 'J', 10 => 'K', 11 => 'L', 13 => 'N', 21 => 'V' ) as $ci => $ten ) {
+foreach ( array( 9 => 'J', 10 => 'K', 11 => 'L', 13 => 'N', 18 => 'S', 22 => 'W' ) as $ci => $ten ) {
 	teq( '🔴 cột ' . $ten . ' chưa ai gõ thì để TRỐNG, không phải số 0', null, $gv( $d1, $ci ) );
 }
 /* Ô ĐÃ gõ thì đổ thẳng số vào tờ xuất — đây là chỗ khác hẳn bản hôm qua. */
-teq( '🔴 cột X (Đặt cọc) mang đúng số đã gõ trên trang', 100000.0, $gv( $d1, 23 ) );
-teq( 'cột S (Trả TN) cũng vậy', 2000000.0, $gv( $d1, 18 ) );
-teq( 'cột T (Hoàn cọc) cũng vậy', 300000.0, $gv( $d1, 19 ) );
+teq( '🔴 cột Y (Đặt cọc) mang đúng số đã gõ trên trang', 100000.0, $gv( $d1, 24 ) );
+teq( 'cột T (Trả TN) cũng vậy', 2000000.0, $gv( $d1, 19 ) );
+teq( 'cột U (Hoàn cọc) cũng vậy', 300000.0, $gv( $d1, 20 ) );
 
 /* 🔴 DÒNG CHƯA KHAI GIÁ: KHÔNG MỘT CÔNG THỨC NÀO, và nói thẳng vì sao.
    Để `M=I+K−L` chạy trên dòng I trống thì M ra 0 — trông y như người này tháng nay không có
@@ -495,9 +497,9 @@ t( 'tìm thấy dòng chưa khai giá', null !== $d_kg );
 teq( 'vẫn có đủ số giờ', 8.0, $gv( $d_kg, 6 ) );
 teq( '🔴 cột Lương chính để TRỐNG', null, $gv( $d_kg, 8 ) );
 teq( '🔴 cột Tổng lương KHÔNG có công thức (không ra số 0)', null, $gv( $d_kg, 12 ) );
-teq( '🔴 cột TOTAL SALARY cũng vậy', null, $gv( $d_kg, 25 ) );
+teq( '🔴 cột TOTAL SALARY cũng vậy', null, $gv( $d_kg, 26 ) );
 t( '🔴 và ghi chú NÓI THẲNG vì sao trống',
-	false !== strpos( (string) $gv( $d_kg, 26 ), 'CHƯA KHAI ĐƠN GIÁ' ), $gv( $d_kg, 26 ) );
+	false !== strpos( (string) $gv( $d_kg, 27 ), 'CHƯA KHAI ĐƠN GIÁ' ), $gv( $d_kg, 27 ) );
 
 /* Dòng cộng của khối, cộng bằng SUM để kế toán sửa một ô là tổng theo ngay. */
 $d_tong = count( $h ) - 1;
@@ -508,8 +510,8 @@ t( 'dòng cuối là dòng TỔNG của khối', false !== strpos( (string) $gv(
    ôm luôn dòng mở khối — nay nó rỗng nên vô hại, nhưng khối thứ hai trở đi thì `Z9` trỏ vào
    giữa khối thứ nhất và cộng nhầm tiền của cơ sở khác.
    Nên: bóc mốc đầu từ CHÍNH công thức, rồi khẳng định nó trỏ đúng dòng người đầu tiên. */
-$ct_z = (string) $gv( $d_tong, 25 );
-t( 'cột Z của dòng cộng là một công thức SUM', 1 === preg_match( '/^=SUM\(Z(\d+):Z(\d+)\)$/', $ct_z, $m_z ),
+$ct_z = (string) $gv( $d_tong, 26 );
+t( 'cột AA (TOTAL) của dòng cộng là một công thức SUM', 1 === preg_match( '/^=SUM\(AA(\d+):AA(\d+)\)$/', $ct_z, $m_z ),
 	$ct_z );
 teq( '🔴 vùng SUM kết thúc ĐÚNG dòng ngay trên dòng cộng', (string) $d_tong, (string) $m_z[2] );
 teq( '🔴 và bắt đầu ĐÚNG dòng người đầu tiên (dòng 10 — dưới dòng mở khối)', '10', (string) $m_z[1] );
@@ -518,11 +520,11 @@ teq( '🔴 dòng 9 là dòng MỞ KHỐI, cột A mang số La Mã', 'I', (strin
 t( '🔴 và cột B mang tên cơ sở', '' !== trim( (string) $gv( 8, 1 ) ), $gv( 8, 1 ) );
 
 /* Ô gộp và độ rộng cột — lấy theo đúng file, để mở ra trông y hệt cái kế toán đang dùng. */
-t( 'có gộp ô tiêu đề nhóm cộng (N7:U7)', in_array( 'N7:U7', $to['gop'], true ), $to['gop'] );
-t( 'có gộp ô tiêu đề nhóm trừ (V7:X7)', in_array( 'V7:X7', $to['gop'], true ), $to['gop'] );
-teq( 'khai đủ độ rộng cho 27 cột A..AA', 27, count( VHCC_BangLuong::RONG_COT ) );
-teq( 'mọi dòng đều đủ 27 cột', true, ( function () use ( $h ) {
-	foreach ( $h as $d ) { if ( count( $d ) !== 27 ) { return false; } }
+t( 'có gộp ô tiêu đề nhóm cộng (N7:V7)', in_array( 'N7:V7', $to['gop'], true ), $to['gop'] );
+t( 'có gộp ô tiêu đề nhóm trừ (W7:Y7)', in_array( 'W7:Y7', $to['gop'], true ), $to['gop'] );
+teq( 'khai đủ độ rộng cho 28 cột A..AB', 28, count( VHCC_BangLuong::RONG_COT ) );
+teq( 'mọi dòng đều đủ 28 cột', true, ( function () use ( $h ) {
+	foreach ( $h as $d ) { if ( count( $d ) !== 28 ) { return false; } }
 	return true;
 } )() );
 
@@ -2426,8 +2428,8 @@ t( '🔴 mỗi khối mang tên cơ sở của nó, và hai tên KHÁC nhau',
 $dong_mo = array_keys( $mo2 );          // số dòng 1-indexed của hai dòng mở khối
 $vung    = array();
 foreach ( $h2 as $i => $d ) {
-	$z = vhcc_o_hang( $d, 25 );          // cột Z
-	if ( is_string( $z ) && 1 === preg_match( '/^=SUM\(Z(\d+):Z(\d+)\)$/', $z, $m_v ) ) {
+	$z = vhcc_o_hang( $d, 26 );          // cột AA (TOTAL SALARY)
+	if ( is_string( $z ) && 1 === preg_match( '/^=SUM\(AA(\d+):AA(\d+)\)$/', $z, $m_v ) ) {
 		$vung[] = array( 'dong' => $i + 1, 'tu' => (int) $m_v[1], 'den' => (int) $m_v[2] );
 	}
 }

@@ -165,6 +165,9 @@ class VHCC_ChotLuong {
 		'target'     => 'Target',
 		'luongThieu' => 'Lương Thiếu',
 		'htXe'       => 'HT giữ xe, HT đi lại',
+		/* 26/09/2026 — anh Thắng: *"hỗ trợ tiền cơm … nếu có thì sẵn chỗ nhập để nếu có, kế toán
+		   sẽ set"*. Một cột riêng trong tờ xuất, ngay sau HT giữ xe (xem `VHCC_BangLuong::RONG_COT`). */
+		'htCom'      => 'HT tiền cơm',
 		'traTN'      => 'Trả TN',
 		'hoanCoc'    => 'Hoàn cọc',
 	);

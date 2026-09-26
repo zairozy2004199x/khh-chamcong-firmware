@@ -597,9 +597,12 @@ class VHCC_BangLuong {
 		);
 	}
 
-	/** Độ rộng 27 cột A..AA, lấy đúng theo file kế toán đang dùng. */
+	/** Độ rộng 28 cột A..AB, lấy theo file kế toán đang dùng (+ cột "HT tiền cơm" 26/09/2026). */
+	/* 🔴 26/09/2026 — thêm cột "HT tiền cơm" ngay sau "HT giữ xe, HT đi lại" (anh Thắng: *"nếu có
+	   thì sẵn chỗ nhập để nếu có, kế toán sẽ set"*). Nhóm cộng thành 8 cột, mọi cột sau dịch
+	   phải một; vị trí cột trong `to_xlsx()` tính theo `count( VHCC_ChotLuong::CONG )`. */
 	const RONG_COT = array( 7.1, 36.6, 15.9, 20.7, 16.4, 17.0, 14.0, 18.6, 18.7, 18.0, 19.6,
-		13.9, 17.7, 12.9, 18.0, 15.3, 15.9, 16.1, 14.0, 14.0, 15.9, 13.3, 9.0, 14.7, 14.6,
+		13.9, 17.7, 12.9, 18.0, 15.3, 15.9, 16.1, 14.0, 14.0, 14.0, 15.9, 13.3, 9.0, 14.7, 14.6,
 		18.1, 28.7 );
 
 	/** Dòng đầu tiên chứa dữ liệu người (1-indexed) — ngay dưới hai dòng tiêu đề 7 và 8. */
@@ -683,25 +686,40 @@ class VHCC_BangLuong {
 		$cuoi_thang = 'Tháng ' . (int) substr( $b['thang'], 5, 2 ) . '/' . substr( $b['thang'], 0, 4 );
 		$ten_cs = '' !== trim( (string) $ten_cs ) ? trim( (string) $ten_cs ) : $b['coso'];
 
+		/* Vị trí cột theo số khoản cộng: A..M cố định; nhóm cộng từ N; rồi Tổng cộng, Phạt, (trống),
+		   Đặt cọc, Tổng trừ, TOTAL SALARY, NOTES. */
+		$nc    = count( VHCC_ChotLuong::CONG );
+		$c_cd  = 'N';                                   // cột cộng đầu
+		$c_cc  = VHCC_Xuat::cot( 12 + $nc );            // cột cộng cuối
+		$c_tc  = VHCC_Xuat::cot( 13 + $nc );            // Tổng nhóm cộng
+		$c_ph  = VHCC_Xuat::cot( 14 + $nc );            // Phạt
+		$c_trg = VHCC_Xuat::cot( 15 + $nc );            // cột trống của mẫu
+		$c_dc  = VHCC_Xuat::cot( 16 + $nc );            // Đặt cọc
+		$c_tt  = VHCC_Xuat::cot( 17 + $nc );            // Tổng nhóm trừ
+		$c_z   = VHCC_Xuat::cot( 18 + $nc );            // TOTAL SALARY
+		$c_gc  = VHCC_Xuat::cot( 19 + $nc );            // NOTES
+		$so_cot = 20 + $nc;
+
 		$rong = function ( $n ) { return array_fill( 0, $n, '' ); };
 		$hang = array();
-		$hang[] = array_merge( array( 'K&H CO. LTD' ), $rong( 26 ) );
-		$hang[] = array_merge( array( 'ACCOUNTING' ), $rong( 26 ) );
-		$hang[] = $rong( 27 );
-		$hang[] = array_merge( array( $o( 'BẢNG TÍNH - THANH TOÁN TIỀN LƯƠNG', VHCC_Xuat::TUA ) ), $rong( 26 ) );
-		$hang[] = array_merge( array( $o( $cuoi_thang, VHCC_Xuat::TUA ) ), $rong( 26 ) );
+		$hang[] = array_merge( array( 'K&H CO. LTD' ), $rong( $so_cot - 1 ) );
+		$hang[] = array_merge( array( 'ACCOUNTING' ), $rong( $so_cot - 1 ) );
+		$hang[] = $rong( $so_cot );
+		$hang[] = array_merge( array( $o( 'BẢNG TÍNH - THANH TOÁN TIỀN LƯƠNG', VHCC_Xuat::TUA ) ), $rong( $so_cot - 1 ) );
+		$hang[] = array_merge( array( $o( $cuoi_thang, VHCC_Xuat::TUA ) ), $rong( $so_cot - 1 ) );
 		/* Dòng 6: tên cơ sở khi xuất MỘT cơ sở. Xuất nhiều thì để trống — tên của từng cơ sở
 		   nằm ở dòng mở khối của chính nó, ghi lại ở đây một cái tên là nói dối về 19 cái kia. */
-		$hang[] = array_merge( array( $o( count( $ds_b ) > 1 ? '' : $ten_cs, VHCC_Xuat::DAM ) ), $rong( 26 ) );
+		$hang[] = array_merge( array( $o( count( $ds_b ) > 1 ? '' : $ten_cs, VHCC_Xuat::DAM ) ), $rong( $so_cot - 1 ) );
 
 		/* Hai dòng tiêu đề — chữ lấy nguyên văn từ file, kể cả mấy chỗ viết tắt. */
-		$h1 = array( 'STT', 'NAME', 'CCCD', 'POSITION', 'Lương cb', '', 'Số công thực', 'Tiền/h',
+		/* Tên nhóm cộng lấy thẳng từ `VHCC_ChotLuong::CONG` — thêm một khoản là thêm một cột. */
+		$h1 = array_merge( array( 'STT', 'NAME', 'CCCD', 'POSITION', 'Lương cb', '', 'Số công thực', 'Tiền/h',
 			'Lương chính', 'Số giờ thêm', "Lương\n giờ thêm+ lương làm lễ", 'BHXH', 'Tổng lương',
-			'Các khoản cộng vào lương', '', '', '', '', '', '', '',
-			'Các khoản giảm trừ vào lương', '', '', '', 'TOTAL SALARY', 'NOTES' );
-		$h2 = array( '', '', '', '', '', 'Số công YC', '', '', '', '', '', '', '',
-			'Setup', '%KID - Trách nhiệm', 'Target ', 'Lương Thiếu ', 'HT giữ xe, HT đi lại',
-			'Trả TN', 'Hoàn cọc', 'Tổng', 'Phạt', '', 'Đặt cọc', 'Cộng', '', '' );
+			'Các khoản cộng vào lương' ), $rong( $nc ),
+			array( 'Các khoản giảm trừ vào lương', '', '', '', 'TOTAL SALARY', 'NOTES' ) );
+		$h2 = array_merge( array( '', '', '', '', '', 'Số công YC', '', '', '', '', '', '', '' ),
+			array_values( VHCC_ChotLuong::CONG ),
+			array( 'Tổng', 'Phạt', '', 'Đặt cọc', 'Cộng', '', '' ) );
 		foreach ( array( $h1, $h2 ) as $h ) {
 			$d = array();
 			foreach ( $h as $x ) { $d[] = $o( $x, $B ); }
@@ -725,7 +743,7 @@ class VHCC_BangLuong {
 		/* Dòng mở khối — cột A số La Mã, cột B tên cơ sở, đúng khuôn file kế toán đang dùng. */
 		$mo_khoi = array( $o( self::so_la_ma( $i_k ), VHCC_Xuat::TONG ),
 			$o( VHCC_NhanSu::ten_coso( $cs_k ), VHCC_Xuat::TONG ) );
-		for ( $i = 2; $i < 27; $i++ ) { $mo_khoi[] = $trong( VHCC_Xuat::TONG ); }
+		for ( $i = 2; $i < $so_cot; $i++ ) { $mo_khoi[] = $trong( VHCC_Xuat::TONG ); }
 		$hang[] = $mo_khoi;
 		$r++;
 		$dau_khoi  = $r;
@@ -768,7 +786,7 @@ class VHCC_BangLuong {
 			if ( ! $co_gia ) {
 				/* Dòng chưa ra được tiền: KHÔNG một công thức nào — xem chú thích trên. */
 				$dong[] = $trong( $T );                                   // I
-				for ( $i = 9; $i <= 25; $i++ ) { $dong[] = $trong( $T ); }
+				for ( $i = 9; $i <= 18 + $nc; $i++ ) { $dong[] = $trong( $T ); }
 			} else {
 				/* ═══════════════════════════════════════════════════════════════════════════
 				 * 🔴 MỖI Ô CÔNG THỨC KÈM LUÔN GIÁ TRỊ ĐÃ TÍNH.
@@ -807,35 +825,35 @@ class VHCC_BangLuong {
 				   đổi quyết định hôm trước ("để trống, kế toán điền"): *"mấy cột đó sẽ do cửa
 				   hàng trưởng nhập"*. Ô nào chưa gõ vẫn để TRỐNG chứ không ghi 0: một tờ lương
 				   đầy số 0 trông như đã xét hết mọi khoản, trong khi chưa ai gõ gì. */
-				foreach ( array_keys( VHCC_ChotLuong::CONG ) as $k_c ) {   // N..T
+				foreach ( array_keys( VHCC_ChotLuong::CONG ) as $k_c ) {   // N..(cộng cuối)
 					$dong[] = empty( $x['cong'][ $k_c ] ) ? $trong( $T )
 						: $o( (float) $x['cong'][ $k_c ], $T );
 				}
-				$dong[] = $ct( 'SUM(N' . $r . ':T' . $r . ')', $T, $v_u );    // U
+				$dong[] = $ct( 'SUM(' . $c_cd . $r . ':' . $c_cc . $r . ')', $T, $v_u );   // tổng cộng
 				$dong[] = empty( $x['tru']['phat'] ) ? $trong( $T )
-					: $o( (float) $x['tru']['phat'], $T );                // V phạt
-				$dong[] = $trong( $T );                                   // W (cột trống của mẫu)
+					: $o( (float) $x['tru']['phat'], $T );                // phạt
+				$dong[] = $trong( $T );                                   // (cột trống của mẫu)
 				$dong[] = empty( $x['tru']['datCoc'] ) ? $trong( $T )
-					: $o( (float) $x['tru']['datCoc'], $T );              // X đặt cọc
-				$dong[] = $ct( 'SUM(V' . $r . ':X' . $r . ')', $T, $v_y );    // Y
-				$dong[] = $ct( 'M' . $r . '+U' . $r . '-Y' . $r, $T, $v_z );  // Z
+					: $o( (float) $x['tru']['datCoc'], $T );              // đặt cọc
+				$dong[] = $ct( 'SUM(' . $c_ph . $r . ':' . $c_dc . $r . ')', $T, $v_y );   // tổng trừ
+				$dong[] = $ct( 'M' . $r . '+' . $c_tc . $r . '-' . $c_tt . $r, $T, $v_z );  // TOTAL
 			}
-			$dong[] = $o( implode( ' · ', $ghi ), $V );                   // AA
+			$dong[] = $o( implode( ' · ', $ghi ), $V );                   // NOTES
 			$hang[] = $dong;
 			if ( $co_gia ) {
-				foreach ( array( 'I' => $v_i, 'M' => $v_i, 'U' => $v_u, 'Y' => $v_y, 'Z' => $v_z )
+				foreach ( array( 'I' => $v_i, 'M' => $v_i, $c_tc => $v_u, $c_tt => $v_y, $c_z => $v_z )
 					as $c_k => $v_k ) {
 					if ( null === $v_k ) { continue; }
 					if ( ! isset( $cong_khoi[ $c_k ] ) ) { $cong_khoi[ $c_k ] = 0.0; }
 					$cong_khoi[ $c_k ] += (float) $v_k;
 				}
 				foreach ( array_keys( VHCC_ChotLuong::CONG ) as $i_c => $k_c ) {
-					$c_k = chr( ord( 'N' ) + $i_c );
+					$c_k = VHCC_Xuat::cot( 13 + $i_c );
 					$v_k = empty( $x['cong'][ $k_c ] ) ? 0.0 : (float) $x['cong'][ $k_c ];
 					if ( ! isset( $cong_khoi[ $c_k ] ) ) { $cong_khoi[ $c_k ] = 0.0; }
 					$cong_khoi[ $c_k ] += $v_k;
 				}
-				foreach ( array( 'V' => 'phat', 'X' => 'datCoc' ) as $c_k => $k_t ) {
+				foreach ( array( $c_ph => 'phat', $c_dc => 'datCoc' ) as $c_k => $k_t ) {
 					$v_k = empty( $x['tru'][ $k_t ] ) ? 0.0 : (float) $x['tru'][ $k_t ];
 					if ( ! isset( $cong_khoi[ $c_k ] ) ) { $cong_khoi[ $c_k ] = 0.0; }
 					$cong_khoi[ $c_k ] += $v_k;
@@ -853,22 +871,24 @@ class VHCC_BangLuong {
 			$trong( VHCC_Xuat::TONG ), $trong( VHCC_Xuat::TONG ), $trong( VHCC_Xuat::TONG ),
 			$trong( VHCC_Xuat::TONG ), $trong( VHCC_Xuat::TONG ), $trong( VHCC_Xuat::TONG ) );
 		if ( $cuoi >= $dau_khoi ) {
-			foreach ( array( 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U',
-				'V', 'W', 'X', 'Y', 'Z' ) as $c ) {
+			$cot_tong = array();
+			for ( $i_t = 8; $i_t <= 18 + $nc; $i_t++ ) { $cot_tong[] = VHCC_Xuat::cot( $i_t ); }
+			foreach ( $cot_tong as $c ) {
 				$tong[] = $ct( 'SUM(' . $c . $dau_khoi . ':' . $c . $cuoi . ')', VHCC_Xuat::TONG,
 					isset( $cong_khoi[ $c ] ) ? round( $cong_khoi[ $c ], 2 ) : null );
 			}
 		} else {
-			for ( $i = 0; $i < 18; $i++ ) { $tong[] = $trong( VHCC_Xuat::TONG ); }
+			for ( $i = 8; $i <= 18 + $nc; $i++ ) { $tong[] = $trong( VHCC_Xuat::TONG ); }
 		}
 		$tong[] = $trong( VHCC_Xuat::TONG );
 		$hang[] = $tong;
 		$r++;
 		}   /* hết một khối cơ sở */
 
-		$gop = array( 'A4:AA4', 'A5:AA5', 'A6:AA6', 'A7:A8', 'B7:B8', 'C7:C8', 'D7:D8', 'E7:E8',
-			'G7:G8', 'H7:H8', 'I7:I8', 'J7:J8', 'K7:K8', 'L7:L8', 'M7:M8', 'N7:U7', 'V7:X7',
-			'Z7:Z8', 'AA7:AA8' );
+		$gop = array( 'A4:' . $c_gc . '4', 'A5:' . $c_gc . '5', 'A6:' . $c_gc . '6', 'A7:A8', 'B7:B8',
+			'C7:C8', 'D7:D8', 'E7:E8', 'G7:G8', 'H7:H8', 'I7:I8', 'J7:J8', 'K7:K8', 'L7:L8', 'M7:M8',
+			$c_cd . '7:' . $c_tc . '7', $c_ph . '7:' . $c_dc . '7', $c_z . '7:' . $c_z . '8',
+			$c_gc . '7:' . $c_gc . '8' );
 
 		return array( 'ok' => true, 'bang' => $b, 'to' => array( array(
 			'ten' => 'Lương ' . $b['thang'],
