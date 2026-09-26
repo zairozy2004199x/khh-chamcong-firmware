@@ -32,6 +32,7 @@
       will-change:transform;transition:border-color .25s,background-color .25s,box-shadow .25s}
     .pg-box>*{grid-area:1/1}
     .pg-box.filled{border-color:rgba(255,255,255,.16);background:rgba(255,255,255,.05)}
+    .pg-box.them{border-style:dashed;background:transparent}
     .pg-box.active{border-color:rgba(255,255,255,.62);box-shadow:0 0 0 4px rgba(255,255,255,.04),0 0 18px rgba(255,255,255,.07)}
     .pg-dot{width:11px;height:11px;border-radius:50%;background:#f1f3f6;opacity:0;transform:scale(.3);transition:opacity .2s,transform .2s}
     .pg-box.filled .pg-dot{opacity:1;transform:none}
@@ -3154,11 +3155,16 @@
         (function b(now){ var p=Math.min(1,(now-t0)/ms), q=e(p); for(var k in den) A[k]=tu[k]+(den[k]-tu[k])*q; ve();
           p<1?requestAnimationFrame(b):xong(); })(t0); });
     }
+    /* Anh Thắng: *"ô anh thấy đang chỉ có 4 số thôi"* — người PIN 6 số nhìn 4 ô là tưởng hết chỗ.
+       Nên đủ 4 số thì luôn bày thêm MỘT ô trống viền đứt (tới 8): nhìn là biết còn gõ tiếp được.
+       Lúc gửi thì bỏ ô thừa ấy, vòng xoay chỉ có đúng số ô đã gõ. */
     function so(){
-      var inp=$('gatePin'), v=inp.value.length;
-      dung(Math.max(4,v));
-      for(var i=0;i<hop.length;i++){ hop[i].classList.toggle('filled',i<v); hop[i].classList.toggle('active',dang==='nhap'&&i===v); }
-      $('gateBtn').disabled=!(dang==='nhap'&&v>=4);
+      var inp=$('gatePin'), v=inp.value.length, nhap=(dang==='nhap');
+      dung(v<4?4:(nhap?Math.min(8,v+1):v));
+      for(var i=0;i<hop.length;i++){ hop[i].classList.toggle('filled',i<v); hop[i].classList.toggle('active',nhap&&i===v);
+        hop[i].classList.toggle('them',i>=4&&i>=v); }
+      $('gateBtn').disabled=!(nhap&&v>=4);
+      $('gateHint').textContent=(nhap&&v>=4&&v<8)?'PIN dài hơn thì gõ tiếp — xong bấm Đăng nhập':'Gõ PIN rồi bấm Đăng nhập hoặc Enter';
     }
     function moc(){
       if(gan) return; gan=true;
