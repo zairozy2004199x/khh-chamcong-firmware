@@ -30,6 +30,7 @@ SAN = {
     'void', 'in', 'of', 'do', 'else', 'try', 'throw', 'case', 'break', 'continue',
     'Array', 'Object', 'String', 'Number', 'Boolean', 'Date', 'Math', 'JSON', 'RegExp', 'Error',
     'Promise', 'Set', 'Map', 'Intl', 'FormData', 'fetch', 'parseInt', 'parseFloat', 'isNaN',
+    'AbortController',   # ngắt fetch treo lâu (tab Đối soát, 26/09/2026)
     'File', 'Blob',   # ảnh báo cáo đóng thành tệp để chia sẻ (1.63.0)
     'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'encodeURIComponent',
     'decodeURIComponent', 'alert', 'confirm', 'require', 'document', 'window', 'console',

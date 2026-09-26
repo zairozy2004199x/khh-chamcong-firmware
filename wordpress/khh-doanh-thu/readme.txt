@@ -102,6 +102,16 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.68.5 =
+* Tab Đối soát: sửa lỗi sâu hơn đứng sau **"nó mờ như này xong từ f5"** (anh Thắng 26/09/2026) — bản 1.68.4 mới sửa được
+  phần nổi (thanh lọc bị khoá lúc đang tải); phần chìm là khi một lượt tải LỖI (mất mạng giữa chừng, hosting cắt kết
+  nối), màn xoá trắng toàn bộ tab về một dòng lỗi — mất luôn cả thanh lọc lẫn các dải sao kê đối chiếu đang hiện, không
+  còn gì để bấm ngoài F5 (đây cũng là lý do "sao kê đối chiếu tự nhiên biến mất"). Nay: (1) một lượt tải bị treo mãi
+  (mạng rớt mà không báo lỗi) tự kết thúc sau 25 giây thay vì treo vô thời hạn; (2) lỗi khi đã có số cũ trên màn thì
+  GIỮ NGUYÊN màn, chỉ chèn một dòng cảnh báo kèm nút **Thử lại** ngay trong tab; lần đầu mở tab mà lỗi (chưa có gì để
+  giữ) vẫn còn nút Thử lại để bấm lại, không phải nạp lại cả trang.
+* Dọn một lỗi HTML tiềm ẩn cùng chỗ: nút Lọc của tab Đối soát từng trùng `id` với chính thẻ bọc thanh lọc.
+
 = 1.68.4 =
 * Tab Đối soát: sửa **"Không chỉnh được ngày"** (anh Thắng 26/09/2026). Trong lúc màn đang tải lại (mạng chậm, hay một
   lượt tải bị treo), thanh lọc (ô Từ/đến, ô Cơ sở, nút Lọc) bị khoá `pointer-events:none` chung với bảng — không còn

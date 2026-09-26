@@ -193,6 +193,42 @@ t('🔴 CSS: aria-busy khoá pointer-events cho cả tab Đối soát', /#dtTabD
 t('🔴 … NHƯNG mở lại pointer-events:auto cho .loc và mọi con của nó (ô ngày, ô cơ sở, nút Lọc vẫn bấm/gõ được khi đang tải)',
   /#dtTabDoiSoat\[aria-busy="true"\]\s*\.loc\s*,\s*#dtTabDoiSoat\[aria-busy="true"\]\s*\.loc\s*\*\s*\{[^}]*pointer-events:\s*auto/.test(cssGoc));
 
+/* ── 13. lượt tải treo mãi (mất mạng) phải TỰ THOÁT, và lỗi KHÔNG được xoá trắng thanh lọc ──
+ * Anh Thắng 26/09/2026, ảnh tab Đối soát đã có đủ dữ liệu (sao kê, thẻ số): *"nó mờ như này xong
+ * từ f5"*. Bản trước: `taiDoiSoat` không có hẹn giờ nào ngắt fetch, nên mạng rớt giữa chừng (mất
+ * gói, hosting cắt kết nối mà không đóng hẳn) là promise không bao giờ resolve/reject —
+ * `aria-busy` treo mãi. VÀ khi fetch có reject, `catch` cũ xoá TOÀN BỘ `o.innerHTML` về một dòng
+ * lỗi — mất luôn thanh `.loc` (ô ngày, nút Lọc) lẫn các dải sao kê đang hiện — không còn gì để
+ * bấm ngoài F5. Hai lỗi cộng lại đúng là thứ anh Thắng gặp: vừa "không sửa được ngày", vừa "sao kê
+ * biến mất" — cùng một nguyên nhân. */
+const tdLoi = boc('taiDoiSoat').replace(/\/\*[\s\S]*?\*\//g, ' ');
+t('🔴 có hẹn giờ (AbortController) để một lượt treo mãi cũng phải tự kết thúc',
+  /\('AbortController' in window\)\s*\?\s*new AbortController\(\)\s*:\s*null/.test(tdLoi));
+t('🔴 hẹn giờ tự abort() sau DOI_SOAT_HET_GIO mili giây',
+  /setTimeout\(function\s*\(\)\s*\{\s*if\s*\(dieuKhien\)\s*dieuKhien\.abort\(\);\s*\},\s*DOI_SOAT_HET_GIO\)/.test(tdLoi));
+t('tín hiệu abort được đưa vào api() qua { signal }', /dieuKhien\s*\?\s*\{\s*signal:\s*dieuKhien\.signal\s*\}\s*:\s*\{\}/.test(tdLoi));
+t('🔴 cả lượt thành công lẫn lượt lỗi đều clearTimeout hẹn giờ (không rò rỉ)',
+  (tdLoi.match(/clearTimeout\(hetGio\)/g) || []).length === 2);
+t('hết giờ có thông báo riêng dễ hiểu, không phải tên lỗi kỹ thuật AbortError',
+  /'AbortError' === e\.name\)\s*\?\s*'Máy chủ không phản hồi kịp\.'/.test(tdLoi));
+t('🔴 có số cũ (S.dsR) thì lỗi KHÔNG xoá màn — chỉ chèn cảnh báo rồi return ngay',
+  /if \(S\.dsR\) \{/.test(tdLoi) && /o\.insertAdjacentHTML\('afterbegin', thongDiep\)/.test(tdLoi) &&
+  /var c = o\.querySelector\('#dsLoi'\); if \(c\) c\.remove\(\);\s*taiDoiSoat\(\);/.test(tdLoi));
+t('🔴 nhánh S.dsR return TRƯỚC dòng xoá trắng — không rơi xuống mất thanh lọc',
+  /return;\s*\}\s*o\.innerHTML = '<div class="khung">/.test(tdLoi));
+t('🔴 lần đầu mở tab thất bại (chưa từng có S.dsR) mới xoá về khung, nhưng vẫn còn nút #dsThuLai để bấm lại — không bắt F5',
+  /id="dsThuLai">Thử lại<\/button>/.test(tdLoi) && /tl\.addEventListener\('click', taiDoiSoat\)/.test(tdLoi));
+t('🔴 KHÔNG dùng bao() trong taiDoiSoat — bao_o rỗng lặng lẽ nếu chưa từng mở hộp "Nạp báo cáo"',
+  !/\bbao\(/.test(tdLoi));
+
+/* ── 14. locDoiSoat: bỏ id trùng giữa DIV bọc ngoài và nút Lọc ────────────────────────
+ * `<div class="loc" id="dsLoc">` bọc ngoài VÀ `<button id="dsLoc">Lọc</button>` bên trong cùng
+ * mang một id — `querySelector('#dsLoc')` luôn trả phần tử ĐẦU TIÊN (chính DIV), không phải nút.
+ * Click vẫn nổi bọt lên DIV nên chưa lộ ra ngoài, nhưng là HTML sai, chỉ nút mới cần id này. */
+const ldLoi = boc('locDoiSoat').replace(/\/\*[\s\S]*?\*\//g, ' ');
+t('🔴 DIV bọc ngoài .loc KHÔNG còn mang id="dsLoc" (chỉ dùng class)', /<div class="loc" style="margin:14px 0 4px">/.test(ldLoi));
+t('🔴 chỉ còn ĐÚNG MỘT id="dsLoc" trong cả hàm (là nút Lọc)', (ldLoi.match(/id="dsLoc"/g) || []).length === 1);
+
 if (hong.length) {
   console.log('\n✗ HỎNG ' + hong.length + ' phép (đạt ' + dat + '):');
   hong.forEach((h) => console.log('   · 🔴 ' + h));

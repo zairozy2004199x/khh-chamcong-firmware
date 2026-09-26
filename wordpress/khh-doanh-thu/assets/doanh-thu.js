@@ -2622,6 +2622,12 @@
 
   /* ================= tab ĐỐI SOÁT ================= */
   var dsLuot = 0;   // đếm lượt gọi, xem chú thích trong `taiDoiSoat`
+  /* 🔴 KHÔNG ĐỂ MỘT LƯỢT TREO MÃI. Anh Thắng 26/09/2026, tab Đối soát: *"nó mờ như này xong từ
+     f5"* — mạng rớt giữa chừng (mất gói, hosting cắt kết nối mà không đóng hẳn) là fetch không
+     bao giờ resolve/reject, `aria-busy` không bao giờ được gỡ, màn cứ mờ mãi. Ngắt sau chừng này
+     mili giây, coi như lỗi, để lượt nào cũng có hồi kết trong một khoảng thời gian có giới hạn —
+     không phải chờ vô thời hạn rồi đành bấm F5. */
+  var DOI_SOAT_HET_GIO = 25000;
   function taiDoiSoat() {
     var o = q('#dtTabDoiSoat');
     var k = tinhKyCua(S.ds);
@@ -2636,16 +2642,46 @@
     } else {
       o.setAttribute('aria-busy', 'true');
     }
-    api('doi-soat?tu=' + k.tu + '&den=' + k.den + '&cua_hang=' + encodeURIComponent(S.ds.ch))
+    var dieuKhien = ('AbortController' in window) ? new AbortController() : null;
+    var hetGio = setTimeout(function () { if (dieuKhien) dieuKhien.abort(); }, DOI_SOAT_HET_GIO);
+    api('doi-soat?tu=' + k.tu + '&den=' + k.den + '&cua_hang=' + encodeURIComponent(S.ds.ch),
+        dieuKhien ? { signal: dieuKhien.signal } : {})
       .then(function (r) {
+        clearTimeout(hetGio);
         if (luot !== dsLuot) return;
         o.removeAttribute('aria-busy');
         veDoiSoat(o, r, k);
       })
       .catch(function (e) {
+        clearTimeout(hetGio);
         if (luot !== dsLuot) return;
         o.removeAttribute('aria-busy');
-        o.innerHTML = '<div class="khung"><div class="trong">' + esc(e.message || e) + '</div></div>';
+        var thu = (e && 'AbortError' === e.name)
+          ? 'Máy chủ không phản hồi kịp.'
+          : (e.message || String(e));
+        /* 🔴 CÓ SỐ CŨ THÌ GIỮ NGUYÊN, ĐỪNG XOÁ CẢ THANH LỌC THEO LỖI. Bản trước lỗi là xoá trắng
+           luôn `.loc` — mất cả ô ngày lẫn nút Lọc, không còn gì để bấm thử lại ngoài F5 (tải lại
+           cả trang) — đúng cái anh Thắng gặp. Có số cũ (`S.dsR`) thì giữ nguyên màn, chỉ chèn một
+           dòng cảnh báo NGAY TRONG TAB kèm nút Thử lại; CHƯA có gì để giữ (lần đầu mở tab) mới xoá
+           về một khung kèm nút Thử lại — vẫn còn đường bấm, không bắt F5.
+           ⚠️ KHÔNG dùng `bao()`: hàm ấy chỉ gắn với hộp "Nạp báo cáo" (`bao_o` = `#dtBao` bên trong
+           hộp đó), rỗng lặng lẽ nếu chưa ai mở hộp ấy lần nào trong phiên — im như không báo gì. */
+        var thongDiep = '<div class="canh-ghep" id="dsLoi" style="margin-bottom:12px">Không tải lại được: ' +
+          esc(thu) + ' <button class="vien" type="button" id="dsThuLaiNhe">Thử lại</button></div>';
+        if (S.dsR) {
+          var cu = o.querySelector('#dsLoi');
+          if (cu) { cu.outerHTML = thongDiep; } else { o.insertAdjacentHTML('afterbegin', thongDiep); }
+          var tln = o.querySelector('#dsThuLaiNhe');
+          if (tln) tln.addEventListener('click', function () {
+            var c = o.querySelector('#dsLoi'); if (c) c.remove();
+            taiDoiSoat();
+          });
+          return;
+        }
+        o.innerHTML = '<div class="khung"><div class="trong">' + esc(thu) +
+          '<br><button class="nut" type="button" id="dsThuLai">Thử lại</button></div></div>';
+        var tl = o.querySelector('#dsThuLai');
+        if (tl) tl.addEventListener('click', taiDoiSoat);
       });
   }
 
@@ -2653,7 +2689,12 @@
   function locDoiSoat() {
     var d = S.ds, ch = (S.cf && S.cf.cua_hang) || [];
     var nut = [['1', 'Ngày mới nhất'], ['7', '7 ngày'], ['30', '30 ngày'], ['thang', 'Tháng này'], ['all', 'Tất cả']];
-    return '<div class="loc" id="dsLoc" style="margin:14px 0 4px">' +
+    /* ⚠️ CHỈ NÚT LỌC MỚI MANG id="dsLoc" (dưới). Bản trước cả DIV bọc ngoài lẫn nút đều id="dsLoc" —
+       hai id trùng nhau; `querySelector('#dsLoc')` luôn trả về phần tử ĐẦU TIÊN (chính DIV này),
+       không phải nút. May là click vẫn nổi bọt lên DIV nên chưa lộ ra ngoài, nhưng là HTML sai và
+       một ngày nào đó âm thầm vỡ theo cách không ai đoán được. DIV không cần id — chỉ `.loc` (lớp)
+       là đủ cho CSS lúc đang tải (xem `#dtTabDoiSoat[aria-busy="true"] .loc`). */
+    return '<div class="loc" style="margin:14px 0 4px">' +
       nut.map(function (n) {
         return '<button class="vien" type="button" data-dsk="' + n[0] + '"' +
           (d.ky === n[0] ? ' aria-pressed="true"' : '') + '>' + esc(n[1]) + '</button>';
