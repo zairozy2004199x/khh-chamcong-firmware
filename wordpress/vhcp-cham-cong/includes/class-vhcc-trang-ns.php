@@ -38,6 +38,11 @@ class VHCC_TrangNS {
 	}
 
 	public static function url() {
+		/* Đang vẽ NHÚNG trong tab "Hồ sơ & tài khoản" (xem `nhung()`): mọi liên kết, lọc và
+		   chuyển hướng sau khi lưu phải quay về đúng tab ấy, không về địa chỉ riêng cũ. */
+		if ( self::$nhung && class_exists( 'VHCC_Web' ) ) {
+			return add_query_arg( 'man', 'ho_so', VHCC_Web::url() );
+		}
 		if ( get_option( 'permalink_structure' ) ) { return home_url( '/' . self::slug() . '/' ); }
 		return add_query_arg( 'vhcc_ns', '1', home_url( '/' ) );
 	}
@@ -59,6 +64,19 @@ class VHCC_TrangNS {
 		if ( ! $is && isset( $_GET['vhcc_ns'] ) && '1' === $_GET['vhcc_ns'] ) { $is = true; }
 		if ( ! $is ) { return; }
 		nocache_headers();
+		/* 🔴 26/09/2026 — TRANG RIÊNG ĐÃ GỘP VÀO TAB "HỒ SƠ & TÀI KHOẢN". Anh Thắng: *"Gộp lại
+		   thành 1 tab và bỏ bớt cái thừa"*, chốt giữ bảng Hồ sơ & tài khoản. Địa chỉ cũ (dấu
+		   trang, liên kết trong tin nhắn) rẽ sang tab ấy, giữ nguyên bộ lọc đang có. */
+		if ( empty( $_POST ) && class_exists( 'VHCC_Web' ) ) {
+			$giu = array( 'man' => 'ho_so' );
+			foreach ( self::THAM_SO as $k ) {
+				if ( isset( $_GET[ $k ] ) && '' !== (string) $_GET[ $k ] ) {
+					$giu[ $k ] = sanitize_text_field( (string) wp_unslash( $_GET[ $k ] ) );
+				}
+			}
+			wp_safe_redirect( add_query_arg( $giu, VHCC_Web::url() ) );
+			exit;
+		}
 		self::phuc_vu();
 		exit;
 	}
@@ -187,6 +205,19 @@ class VHCC_TrangNS {
 		/* ⚠️ NÚT ÁP CẢ CỘT KHÔNG GỬI `viec`. Một biểu mẫu chỉ gửi tên/giá trị của ĐÚNG cái nút
 		   vừa bấm — bấm nút cột thì `viec` (của nút Lưu) không có mặt. Chỉ nghe mỗi `viec` là
 		   nút cột bấm xong không xảy ra gì cả, và không có gì báo. */
+		$viec_gui = self::viec_gui();
+		if ( ! empty( $_POST ) && '' !== $viec_gui ) {
+			$bao = self::ky_dung( $toi )
+				? self::lam_viec( sanitize_text_field( $viec_gui ), $toi )
+				: array( array( 'loi' => VHCC_Web::vi_sao_chan_post() ) );
+			self::cat_bao( $bao );
+			self::ve( self::url_hien() );
+		}
+		self::trang_chinh( $toi );
+	}
+
+	/** Tên việc của lượt POST — nhiều nút không gửi `viec` mà mang tên riêng (xem dưới). */
+	private static function viec_gui() {
 		$viec_gui = '';
 		if ( isset( $_POST['viec'] ) )     { $viec_gui = (string) wp_unslash( $_POST['viec'] ); }
 		elseif ( isset( $_POST['cot'] ) )  { $viec_gui = 'ap_cot'; }
@@ -214,15 +245,60 @@ class VHCC_TrangNS {
 		elseif ( isset( $_POST['vp_day'] ) || isset( $_POST['vp_go'] ) ) { $viec_gui = 'day_vp'; }
 		elseif ( isset( $_POST['sua_may'] ) ) { $viec_gui = 'sua_may_nv'; }
 		elseif ( isset( $_POST['xoa_may'] ) ) { $viec_gui = 'xoa_may_nv'; }
+		return $viec_gui;
+	}
 
-		if ( ! empty( $_POST ) && '' !== $viec_gui ) {
-			$bao = self::ky_dung( $toi )
-				? self::lam_viec( sanitize_text_field( $viec_gui ), $toi )
-				: array( array( 'loi' => VHCC_Web::vi_sao_chan_post() ) );
-			self::cat_bao( $bao );
-			self::ve( self::url_hien() );
-		}
-		self::trang_chinh( $toi );
+	/* ════════════════════════════════════════════════════════════════════════════════════════
+	 * NHÚNG VÀO TAB "HỒ SƠ & TÀI KHOẢN" — 26/09/2026
+	 * ════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng: *"Gộp lại thành 1 tab và bỏ bớt cái thừa"*, chốt GIỮ BẢNG HỒ SƠ & TÀI KHOẢN.
+	 * Các khối của trang này (chờ duyệt xuống máy, bảng vai trò, vai theo bộ phận, tab Quyền vào
+	 * trang, tab đẩy chi phí…) vẽ ngay trong tab ấy; bảng "Hồ sơ nhân sự" TRÙNG của trang này
+	 * nhường chỗ cho bảng hồ sơ của tab (`$ve_giua`).
+	 *
+	 * ⚠️ BIỂU MẪU POST của khối nhúng mang thêm ô ẩn `ns_nhung=1` — nhờ đó `VHCC_Web` biết lượt
+	 *    gửi ấy là việc của trang này và chuyển cho `xu_ly_nhung()`, không lẫn với việc cùng tên
+	 *    của màn Hồ sơ (`ghep_ma` có ở cả hai). Biểu mẫu GET (ô lọc) mang thêm `man=ho_so` — trình
+	 *    duyệt bỏ chuỗi truy vấn của địa chỉ khi gửi form GET, thiếu nó là lọc xong rơi khỏi tab.
+	 *    Chỉ gắn vào phần của trang này: phần `$ve_giua` in ra NGOÀI bộ đệm nên không bị đụng.
+	 * ════════════════════════════════════════════════════════════════════════════════════════ */
+	private static $nhung = false;
+
+	public static function nhung( $toi, $ve_giua ) {
+		self::$nhung = true;
+		echo '<style>' . self::css_them() . '</style>';
+		self::mo();
+		self::than( $toi, $ve_giua );
+		self::dong();
+		self::$nhung = false;
+	}
+
+	/** Lượt POST từ một khối nhúng. Trả true nếu đã xử (kể cả bị chối). */
+	public static function xu_ly_nhung() {
+		$toi = self::toi();
+		if ( ! $toi ) { return false; }
+		self::$nhung = true;
+		$viec_gui = self::viec_gui();
+		if ( '' === $viec_gui ) { self::$nhung = false; return false; }
+		$bao = self::ky_dung( $toi )
+			? self::lam_viec( sanitize_text_field( $viec_gui ), $toi )
+			: array( array( 'loi' => VHCC_Web::vi_sao_chan_post() ) );
+		self::cat_bao( $bao );
+		self::ve( self::url_hien() );
+		self::$nhung = false;
+		return true;
+	}
+
+	private static function mo() { if ( self::$nhung ) { ob_start(); } }
+
+	private static function dong() {
+		if ( ! self::$nhung ) { return; }
+		$h = (string) ob_get_clean();
+		$h = preg_replace( '~<form method="post"(?![^>]*\saction=)[^>]*>~',
+			'$0<input type="hidden" name="ns_nhung" value="1">', $h );
+		$h = preg_replace( '~<form method="get"[^>]*>~',
+			'$0<input type="hidden" name="man" value="ho_so">', $h );
+		echo $h;
 	}
 
 	/**
@@ -1579,17 +1655,6 @@ class VHCC_TrangNS {
 	}
 
 	private static function trang_chinh( $toi ) {
-		$ds_trang = VHCC_Cong::ds();
-		$cs   = isset( $_GET['ncs'] )  ? VHCC_NhanSu::chuan_coso( wp_unslash( $_GET['ncs'] ) ) : '';
-		$q    = isset( $_GET['nq'] )   ? sanitize_text_field( wp_unslash( $_GET['nq'] ) ) : '';
-		$vai  = isset( $_GET['nvai'] ) ? sanitize_text_field( wp_unslash( $_GET['nvai'] ) ) : '';
-		$mang = isset( $_GET['nmang'] ) ? sanitize_text_field( wp_unslash( $_GET['nmang'] ) ) : '';
-		$nbp  = isset( $_GET['nbp'] )  ? sanitize_text_field( wp_unslash( $_GET['nbp'] ) ) : '';
-		$p    = isset( $_GET['np'] )   ? max( 1, (int) $_GET['np'] ) : 1;
-		/* Tab nào đang mở ở màn Tổng quan. Mặc định Nhân sự — người mở trang này hằng ngày là
-		   để tìm một người, không phải để khai quyền. */
-		$tab  = ( isset( $_GET['ntab'] ) && 'quyen' === $_GET['ntab'] ) ? 'quyen' : 'nhan_su';
-
 		echo self::dau( 'Quản lý nhân sự' );
 		echo '<header><div class="bo">'
 			. '<a class="hieu" href="' . esc_url( self::url() ) . '"><b>K&amp;H</b> Quản lý nhân sự</a>'
@@ -1602,6 +1667,26 @@ class VHCC_TrangNS {
 		   là người dùng tưởng mình lạc sang chỗ khác. */
 		echo '<div class="tieu-man"><h1>Quản lý nhân sự</h1>'
 			. '<p class="mo">Ai vào được trang nào · bảng vai trò · chia đầu việc</p></div>';
+		self::than( $toi, null );
+		self::dong_trang();
+	}
+
+	/**
+	 * Thân màn — dùng chung cho trang riêng (`trang_chinh`) và bản nhúng trong tab Hồ sơ &
+	 * tài khoản (`nhung`). `$ve_giua` = null: vẽ bảng "Hồ sơ nhân sự" của trang này như cũ;
+	 * có hàm: vẽ phần hồ sơ của tab Hồ sơ & tài khoản vào đúng chỗ ấy (xem `nhung()`).
+	 */
+	private static function than( $toi, $ve_giua ) {
+		$ds_trang = VHCC_Cong::ds();
+		$cs   = isset( $_GET['ncs'] )  ? VHCC_NhanSu::chuan_coso( wp_unslash( $_GET['ncs'] ) ) : '';
+		$q    = isset( $_GET['nq'] )   ? sanitize_text_field( wp_unslash( $_GET['nq'] ) ) : '';
+		$vai  = isset( $_GET['nvai'] ) ? sanitize_text_field( wp_unslash( $_GET['nvai'] ) ) : '';
+		$mang = isset( $_GET['nmang'] ) ? sanitize_text_field( wp_unslash( $_GET['nmang'] ) ) : '';
+		$nbp  = isset( $_GET['nbp'] )  ? sanitize_text_field( wp_unslash( $_GET['nbp'] ) ) : '';
+		$p    = isset( $_GET['np'] )   ? max( 1, (int) $_GET['np'] ) : 1;
+		/* Tab nào đang mở ở màn Tổng quan. Mặc định Nhân sự — người mở trang này hằng ngày là
+		   để tìm một người, không phải để khai quyền. */
+		$tab  = ( isset( $_GET['ntab'] ) && 'quyen' === $_GET['ntab'] ) ? 'quyen' : 'nhan_su';
 
 		foreach ( self::lay_bao() as $b ) { self::ve_bao( $b ); }
 
@@ -1629,7 +1714,6 @@ class VHCC_TrangNS {
 		 */
 		if ( isset( self::ds_dich_day()[ self::man_ns() ] ) ) {
 			self::the_tab_day( $toi, self::man_ns() );
-			self::dong_trang();
 			return;
 		}
 
@@ -1637,7 +1721,6 @@ class VHCC_TrangNS {
 			echo '<div class="the"><div class="bao loi">Không dò thấy trang nào trên site này. '
 				. 'Các plugin trang (Cổng, Nội bộ, Chi phí, Ghế, Hợp đồng) có thể chưa được kích hoạt.'
 				. '</div></div>';
-			self::dong_trang();
 			return;
 		}
 
@@ -1670,7 +1753,6 @@ class VHCC_TrangNS {
 			self::the_dau_viec( $toi );
 			self::the_ngoai_pham_vi();
 			self::the_mac_dinh( $ds_trang );
-			self::dong_trang();
 			return;
 		}
 
@@ -1679,9 +1761,17 @@ class VHCC_TrangNS {
 		 * =================================================================================== */
 		self::the_gop( $toi );
 		self::the_cho_duyet_may( $toi );
-		echo '<div class="the">';
-		self::the_bang( $toi, $ds_trang, $cs, $q, $vai, $p, $mang, $nbp, 'nhan_su' );
-		echo '</div>';
+		if ( null === $ve_giua ) {
+			echo '<div class="the">';
+			self::the_bang( $toi, $ds_trang, $cs, $q, $vai, $p, $mang, $nbp, 'nhan_su' );
+			echo '</div>';
+		} else {
+			/* Bảng hồ sơ của tab Hồ sơ & tài khoản thay cho bảng trùng của trang này. In NGOÀI bộ
+			   đệm nhúng để biểu mẫu của nó không bị gắn ô `ns_nhung` (xem `dong()`). */
+			self::dong();
+			call_user_func( $ve_giua );
+			self::mo();
+		}
 		self::the_dong_bo( $toi );
 		self::canh_vai_la( $toi );
 		self::the_vai( $toi );
@@ -1693,7 +1783,6 @@ class VHCC_TrangNS {
 		   `bp_*` ở máy chủ giữ nguyên, nên dữ liệu đang chạy không đổi. */
 		self::the_vai_bp( $toi );
 		self::the_gop_tay( $toi );
-		self::dong_trang();
 	}
 
 	private static function ve_bao( $b ) {

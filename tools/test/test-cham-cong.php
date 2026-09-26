@@ -6297,7 +6297,11 @@ t( 'vai trò là danh sách ĐÓNG (select), không phải ô gõ tự do',
 t( 'cả bảng nằm trong MỘT form', strpos( $h_w, 'id="vhcc-bang"' ) !== false );
 t( 'mọi ô trỏ về form đó', substr_count( $h_w, 'form="vhcc-bang"' ) >= 7, $h_w );
 t( 'có MỘT nút Lưu tất cả', strpos( $h_w, 'Lưu tất cả' ) !== false );
-t( 'KHÔNG còn nút Lưu từng dòng', strpos( $h_w, '>Lưu</button>' ) === false, $h_w );
+/* 26/09/2026: tab này nay nhúng cả các khối Quản lý nhân sự (Bảng vai trò… có nút "Lưu" của
+   riêng chúng) — soi đúng BẢNG HỒ SƠ (form `vhcc-bang`), không soi cả trang. */
+$bang_w = (string) substr( $h_w, (int) strpos( $h_w, 'id="vhcc-bang"' ) );
+$bang_w = (string) substr( $bang_w, 0, (int) strpos( $bang_w, '</form>' ) );
+t( 'KHÔNG còn nút Lưu từng dòng', '' !== $bang_w && strpos( $bang_w, '>Lưu</button>' ) === false, $bang_w );
 t( 'có nút đặt Vai trò hàng loạt', strpos( $h_w, 'value="vai_tro_hang_loat"' ) !== false );
 t( 'và nói rõ phạm vi là các dòng ĐANG HIỆN',
 	strpos( $h_w, 'dòng đang hiện' ) !== false && strpos( $h_w, 'không phải cả sổ' ) !== false );
@@ -6453,9 +6457,10 @@ t( 'thẻ kê ra các ô sẽ khai (ảnh thẻ · lương · PIN)',
 $vt_tm  = strpos( $h_tm, '➕ Tạo nhân sự mới' );
 $vt_csv = strpos( $h_tm, 'NẠP HỒ SƠ NHÂN VIÊN TỪ FILE' );
 if ( false === $vt_csv ) { $vt_csv = strpos( $h_tm, 'file .csv' ); }
-$vt_tk  = strpos( $h_tm, 'Tài khoản đăng nhập' );
+$vt_tk  = strpos( $h_tm, '<h2>🔑 Tài khoản đăng nhập' );
 t( '🔴 thẻ tạo mới có mặt trên màn', false !== $vt_tm );
-t( 'và trên thẻ Tài khoản đăng nhập', false !== $vt_tk && $vt_tm < $vt_tk );
+/* Thẻ 🔑 chỉ hiện khi cổng đọc sai nguồn (08/09/2026) — có thì phải đứng dưới thẻ tạo mới. */
+t( 'và trên thẻ Tài khoản đăng nhập', false === $vt_tk || $vt_tm < $vt_tk );
 /* Vẫn CHỈ MỘT cửa: thẻ mới không được dựng thêm một biểu mẫu tạo thứ hai. */
 t( '🔴 thẻ mới chỉ là ĐƯỜNG VÀO, không phải biểu mẫu thứ hai',
 	strpos( $h_tm, 'name="ma_nv"' ) === false );

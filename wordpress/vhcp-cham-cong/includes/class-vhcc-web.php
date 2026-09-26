@@ -637,6 +637,13 @@ class VHCC_Web {
 			self::ve( self::url_hien_sua() );
 		}
 
+		/* Lượt gửi từ một khối Quản lý nhân sự NHÚNG trong tab Hồ sơ & tài khoản — chuyển cho
+		   chính trang ấy xử (xem `VHCC_TrangNS::nhung()` / `xu_ly_nhung()`). */
+		if ( ! empty( $_POST['ns_nhung'] ) && class_exists( 'VHCC_TrangNS' )
+			&& method_exists( 'VHCC_TrangNS', 'xu_ly_nhung' ) && VHCC_TrangNS::xu_ly_nhung() ) {
+			self::trang_chinh( $toi, array() );
+			return;
+		}
 		if ( ! empty( $_POST ) && isset( $_POST['viec'] ) ) {
 			$bao = self::chu_ky_dung( $toi )
 				? self::lam_viec( sanitize_text_field( wp_unslash( $_POST['viec'] ) ), $toi )
@@ -4429,12 +4436,25 @@ class VHCC_Web {
 			return;
 		}
 
-		self::the_tao_moi();
 		/* 26/09/2026 — BỎ THẺ "Nạp hồ sơ nhân viên từ file .csv" khỏi màn này (anh Thắng: "bỏ này
 		   đi"). Lõi nạp (`VHCC_NapCsv`, việc `xem_csv`/`nap_csv`/`lui_csv`) vẫn giữ nguyên. */
-		self::the_tai_khoan( $ky, $la );
-		self::the_ho_so( $ky, $toi );
-		if ( $la ) { self::the_xoa_het( $ky, $tong ); }
+		$ve_hs = function () use ( $ky, $la, $toi, $tong ) {
+			self::the_tao_moi();
+			self::the_tai_khoan( $ky, $la );
+			self::the_ho_so( $ky, $toi );
+			if ( $la ) { self::the_xoa_het( $ky, $tong ); }
+		};
+		/* 🔴 26/09/2026 — "QUẢN LÝ NHÂN SỰ" GỘP VÀO TAB NÀY. Anh Thắng: *"Gộp lại thành 1 tab và
+		   bỏ bớt cái thừa"*, chốt giữ bảng Hồ sơ & tài khoản. Các khối của trang ấy (chờ duyệt
+		   xuống máy, bảng vai trò, tab Quyền vào trang, tab đẩy chi phí…) vẽ quanh bảng hồ sơ
+		   của tab; bảng hồ sơ trùng của trang ấy bỏ. Ai không mở được trang ấy thì chỉ thấy phần
+		   hồ sơ như cũ. ⚠️ Gác `method_exists` cùng hàm với lời gọi (`kiem-goi-cheo.php`). */
+		if ( class_exists( 'VHCC_TrangNS' ) && method_exists( 'VHCC_TrangNS', 'nhung' )
+			&& method_exists( 'VHCC_TrangNS', 'toi' ) && VHCC_TrangNS::toi() ) {
+			VHCC_TrangNS::nhung( $toi, $ve_hs );
+		} else {
+			$ve_hs();
+		}
 
 		self::dong_trang();
 	}
@@ -4741,13 +4761,8 @@ class VHCC_Web {
 		   liên kết chứ không phải một màn. Vẫn để chung cột: với người dùng thì đó vẫn là
 		   "một hệ thống, bấm qua lại được", đúng thứ anh Thắng hỏi. */
 		echo '<a href="' . esc_url( VHCC_Tram::url() ) . '"><span class="bt">📷</span>Chấm công</a>';
-		/* Quản lý nhân sự cũng là TRANG KHÁC. Chỉ vẽ cho người mở được nó — vẽ cho cả người
-		   không vào được thì bấm vào chỉ nhận một câu chối, mà cái nút thì cứ nằm đó mời gọi.
-		   ⚠️ Gác `method_exists` cùng hàm với lời gọi (`tools/test/kiem-goi-cheo.php`). */
-		if ( class_exists( 'VHCC_TrangNS' ) && method_exists( 'VHCC_TrangNS', 'url' )
-			&& method_exists( 'VHCC_TrangNS', 'toi' ) && VHCC_TrangNS::toi() ) {
-			echo '<a href="' . esc_url( VHCC_TrangNS::url() ) . '"><span class="bt">👥</span>Quản lý nhân sự</a>';
-		}
+		/* 26/09/2026 — BỎ mục "Quản lý nhân sự": trang ấy đã GỘP vào tab "Hồ sơ & tài khoản"
+		   (anh Thắng: "Gộp lại thành 1 tab và bỏ bớt cái thừa"). Xem `VHCC_TrangNS::nhung()`. */
 		echo '</nav>';
 
 		echo '<div class="canh-duoi">';
