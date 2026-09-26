@@ -487,7 +487,7 @@ a{color:var(--nhan)}
  *    không phải mã OTP dùng một lần như mẫu.
  * ⚠️ Màu theo bộ áo (`--nhan`, `--do`, `--luc`), không dán hex; không tải font ngoài.
  * ══════════════════════════════════════════════════════════════════════════════════════════ */
-.vao-san{position:relative;height:70px;margin:var(--d2) 0 0;touch-action:manipulation;--vo:46px;transition:height .32s cubic-bezier(.2,.8,.2,1)}
+.vao-san{position:relative;height:70px;margin:var(--d2) 0 0;touch-action:manipulation;--vo:46px;transition:height .48s cubic-bezier(.2,.8,.2,1)}
 .vao-vong{position:absolute;left:50%;top:50%;border-radius:50%;border:1px solid var(--vien-dam);opacity:0;pointer-events:none}
 .vao-o{position:absolute;inset:0}
 .vao-hop{position:absolute;left:50%;top:50%;width:var(--vo);height:var(--vo);margin:calc(var(--vo) / -2) 0 0 calc(var(--vo) / -2);
@@ -495,23 +495,23 @@ a{color:var(--nhan)}
 	will-change:transform;transition:border-color .2s,background-color .2s,box-shadow .2s}
 .vao-hop i{width:12px;height:12px;border-radius:50%;background:var(--chu);transform:scale(0);transition:transform .18s}
 .vao-hop.co i{transform:scale(1)}
-.vao-hop.lan i{animation:vaoLan .26s cubic-bezier(.2,.8,.2,1)}
+.vao-hop.lan i{animation:vaoLan .4s cubic-bezier(.2,.8,.2,1)}
 @keyframes vaoLan{from{transform:translateY(70%) scale(.3);opacity:0}to{transform:scale(1);opacity:1}}
 .vao-hop.dang{border-color:var(--nhan);box-shadow:0 0 0 3px var(--nhan-nhat)}
 .vao-o.sai .vao-hop{border-color:var(--do)}
 .vao-o.sai .vao-hop i{background:var(--do)}
 .vao-o.dung .vao-hop{border-color:var(--luc);background:var(--luc-nhat)}
 .vao-o.dung .vao-hop i{background:var(--luc)}
-.vao-o.lac{animation:vaoLac .46s cubic-bezier(.36,.07,.19,.97)}
+.vao-o.lac{animation:vaoLac .68s cubic-bezier(.36,.07,.19,.97)}
 @keyframes vaoLac{15%{transform:translateX(-9px)}30%{transform:translateX(8px)}45%{transform:translateX(-6px)}60%{transform:translateX(5px)}75%{transform:translateX(-2px)}100%{transform:none}}
 .vao-o.xoa .vao-hop i{transform:scale(0)}
 #oPin.vao-nhap{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:320px;max-width:100%;height:var(--vo);
 	z-index:3;opacity:0;border:0;background:transparent;color:transparent;caret-color:transparent;font-size:16px;padding:0;margin:0}
 .vao-dau{position:absolute;left:50%;top:50%;width:62px;height:62px;margin:-31px 0 0 -31px;display:grid;place-items:center;
 	border-radius:18px;border:1.5px solid var(--luc);background:var(--luc-nhat);opacity:0;transform:scale(.4);pointer-events:none;z-index:2}
-.vao-dau.hien{opacity:1;transform:scale(1);transition:opacity .25s,transform .5s cubic-bezier(.34,1.56,.64,1)}
+.vao-dau.hien{opacity:1;transform:scale(1);transition:opacity .4s,transform .75s cubic-bezier(.34,1.56,.64,1)}
 .vao-dau path{fill:none;stroke:var(--luc);stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:20;stroke-dashoffset:20}
-.vao-dau.hien path{stroke-dashoffset:0;transition:stroke-dashoffset .4s cubic-bezier(.65,0,.35,1) .2s}
+.vao-dau.hien path{stroke-dashoffset:0;transition:stroke-dashoffset .6s cubic-bezier(.65,0,.35,1) .3s}
 @media (prefers-reduced-motion: reduce){.vao-hop,.vao-hop i,.vao-dau,.vao-dau path,.vao-o{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -1981,6 +1981,8 @@ el('oPin').addEventListener('keydown', function(e){ if(e.key==='Enter'){ vaoHe()
  * nằm ở `#oPin`, và `vaoHe()` vẫn là đường gửi duy nhất.
  *   · 6 ô mặc định; gõ tới 7–8 số thì tự thêm ô (PIN cũ 4–8 số vẫn vào được).
  *   · Gõ ĐỦ 6 số rồi dừng tay một nhịp là tự gửi; PIN 4–5 số thì bấm VÀO / Enter.
+ *   · 26/09/2026 — anh Thắng: *"Tốc độ trên app điện thoại hơi nhanh, chậm chút"* — mọi nhịp
+ *     hoạt cảnh chậm lại khoảng 1,5 lần.
  * ══════════════════════════════════════════════════════════════════════════════════════════ */
 var VAO = (function(){
 	var san = el('vaoSan'), oEl = el('vaoO'), inp = el('oPin'), vong = el('vaoVong'), dau = el('vaoDau');
@@ -2039,7 +2041,7 @@ var VAO = (function(){
 			o[i].classList.toggle('dang', !ban && i === v.length && document.activeElement === inp);
 		}
 		clearTimeout(hen);
-		if(!ban && v.length === 6){ hen = setTimeout(function(){ if(!ban && inp.value.length === 6){ vaoHe(); } }, 450); }
+		if(!ban && v.length === 6){ hen = setTimeout(function(){ if(!ban && inp.value.length === 6){ vaoHe(); } }, 650); }
 	}
 	function ngu(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
 	inp.addEventListener('input', gan);
@@ -2055,18 +2057,18 @@ var VAO = (function(){
 			ban = true; no = true; clearTimeout(hen); gan(); inp.blur(); bo();
 			if(RM){ return; }
 			quay = true;
-			ngu(RM ? 0 : 200).then(function(){ return tw({c:1, v:1}, 640); })
-				.then(function lap(){ if(quay){ return tw({a:A.a + 360, s:A.s + 360}, 900).then(lap); } });
+			ngu(RM ? 0 : 320).then(function(){ return tw({c:1, v:1}, 1000); })
+				.then(function lap(){ if(quay){ return tw({a:A.a + 360, s:A.s + 360}, 1400).then(lap); } });
 		},
 		sai: function(){
 			quay = false;
 			oEl.classList.add('sai');
 			var aT = Math.ceil(A.a / 360) * 360, sT = Math.round((A.s + (aT - A.a)) / 360) * 360;
-			return tw({c:0, v:0, a:aT, s:sT}, RM ? 1 : 560).then(function(){
+			return tw({c:0, v:0, a:aT, s:sT}, RM ? 1 : 850).then(function(){
 				A.a = 0; A.s = 0; ve();
-				oEl.classList.add('lac'); return ngu(480);
+				oEl.classList.add('lac'); return ngu(700);
 			}).then(function(){
-				oEl.classList.remove('lac'); oEl.classList.add('xoa'); return ngu(220);
+				oEl.classList.remove('lac'); oEl.classList.add('xoa'); return ngu(340);
 			}).then(function(){
 				oEl.classList.remove('xoa', 'sai'); inp.value = ''; ban = false; no = false; bo(); gan();
 				try { inp.focus({preventScroll:true}); } catch(e){ inp.focus(); }
@@ -2075,9 +2077,9 @@ var VAO = (function(){
 		dung: function(){
 			quay = false;
 			oEl.classList.add('dung');
-			return ngu(RM ? 60 : 320).then(function(){
-				return tw({rm:0, a:A.a + 240, s:A.s + 160}, RM ? 1 : 620);
-			}).then(function(){ dau.classList.add('hien'); return ngu(RM ? 60 : 650); });
+			return ngu(RM ? 60 : 500).then(function(){
+				return tw({rm:0, a:A.a + 240, s:A.s + 160}, RM ? 1 : 950);
+			}).then(function(){ dau.classList.add('hien'); return ngu(RM ? 60 : 1100); });
 		},
 		/* Về trạng thái ban đầu (sau khi vào xong, hoặc đăng xuất). */
 		lai: function(){
